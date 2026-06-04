@@ -24,8 +24,6 @@ package java.util;
 //@ non_null_by_default
 public abstract class AbstractMap<K,V> implements Map<K,V> {
     /*-RAC@ public normal_behavior
-      @   ensures modelMap != null; // TODO - should not be needed
-      @   ensures keys != null; // TODO - should not be needed
       @   ensures \result <==> isEmpty();
       @ public pure model boolean initialAbstractMap();
       @*/
@@ -38,19 +36,19 @@ public abstract class AbstractMap<K,V> implements Map<K,V> {
 
     // The specs for the following are all inherited
 
+    //@ helper
     public int size();
     public boolean isEmpty();
     public boolean containsValue(Object value);
     public boolean containsKey(Object key);
-    public /*@ nullable */ V get(/*@ nullable */ java.lang.Object o);
     public /*@ nullable */ V get(/*@ nullable */ Object key);   // OPENJML FIXME: K key ?
     
     // specs inherited from Map
     @Override
     public /*@ nullable */ V put(/*@ nullable */ K key, /*@ nullable */ V value);
 
-    //@ nullable
-    public V remove(Object key);
+
+    public /*@ nullable */ V remove(Object key);
     public void putAll(Map<? extends K,? extends V> t);
     public void clear();
     public Set<K> keySet();

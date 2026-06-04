@@ -1,5 +1,6 @@
 package java.util;
  
+//@ nullable_by_default
 public class ConcurrentModificationException extends RuntimeException {
   
     /*@ public normal_behavior
@@ -9,8 +10,8 @@ public class ConcurrentModificationException extends RuntimeException {
     public ConcurrentModificationException();
   
     /*@ public normal_behavior
-      @   ensures standardThrowable(s);
+      @   ensures standardThrowable(message);
       @*/
     //@ pure
-    public ConcurrentModificationException(String s);
+    public ConcurrentModificationException(String message);
 }

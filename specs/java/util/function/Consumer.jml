@@ -1,7 +1,7 @@
 package java.util.function;
 
 public interface Consumer<T> {
-    //@ model public instance JMLDataGroup consumerState; //@ in objectState;
+    //@ model public instance \datagroup consumerState; //@ in objectState;
 
     //@ public behavior
     //@   requires t != null;
@@ -9,24 +9,24 @@ public interface Consumer<T> {
     void accept(T t);
     
     //@ public normal_behavior
-    //@   ensures \fresh(\result);  // FIXME - how to specify a composed Consumer
+    //-RAC@   ensures \fresh(\result);  // FIXME - how to specify a composed Consumer
     //@ pure
-    public java.util.function.Consumer<T> andThen(java.util.function.Consumer<? super T> f);
+    public Consumer<T> andThen(Consumer<? super T> f);
 
-    /*@ model public interface Local<T> extends Consumer<T> {
+    /*@ model public interface Local<TT> extends Consumer<TT> {
            also public normal_behavior
               requires t != null;
               assignable t.*;
-           void accept(T t);
+           void accept(TT t);
         }
     
      @*/
 
-    /*@ model public interface Pure<T> extends Consumer<T> {
+    /*@ model public interface Pure<TT> extends Consumer<TT> {
            also public normal_behavior
               requires t != null;
               assignable \nothing;
-           void accept(T t);
+           void accept(TT t);
         }
     
      @*/

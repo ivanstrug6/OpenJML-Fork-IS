@@ -4,11 +4,11 @@ package javax.crypto.spec;
 public class DHParameterSpec implements java.security.spec.AlgorithmParameterSpec {
       //@ model public int n;
       //@ spec_public
-      private java.math.BigInteger p;
+      private final java.math.BigInteger p;
       //@ spec_public
-      private java.math.BigInteger g;
+      private final java.math.BigInteger g;
       //@ spec_public
-      private int l;
+      private final int l;
       //@ public normal_behavior
       //@   requires true;
       //@ pure
@@ -19,15 +19,15 @@ public class DHParameterSpec implements java.security.spec.AlgorithmParameterSpe
       public DHParameterSpec(java.math.BigInteger p, java.math.BigInteger q, int n);
       //@ public normal_behavior
       //@   ensures \result == p;
-      //@ pure
+      //@ spec_pure
       public java.math.BigInteger getP();
       //@ public normal_behavior
       //@   ensures \result == g;
-      //@ pure
+      //@ spec_pure
       public java.math.BigInteger getG();
       //@ public normal_behavior
       //@   ensures \result == l;
-      //@ pure
+      //@ spec_pure
       public int getL();
       
 }

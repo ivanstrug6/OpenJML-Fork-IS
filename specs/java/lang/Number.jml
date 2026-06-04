@@ -37,8 +37,8 @@ public abstract class Number implements java.io.Serializable {
       @ public normal_behavior
       @   requires Character.MIN_RADIX <= radix <= Character.MAX_RADIX;
       @   ensures \result == (val != null && val.length() > 0);
-      @ pure
-      @ public static model function boolean parseable(nullable String val, int radix);
+      @ spec_pure
+      @ public static model helper boolean parseable(nullable String val, int radix);
      */
 
   /* FIXME - include this when we can reason about characters @
@@ -68,7 +68,7 @@ public abstract class Number implements java.io.Serializable {
     // of a valid integral number - optional initial minus sign, then a
     // sequence of digits of the given radix, with the resulting signed
     // number fitting in the given number of bits.
-    @   model public function static boolean parseable( String s, int r, int bits );
+    @   model public spec_pure static boolean parseable( String s, int r, int bits );
     @*/
 
         // A String is decodable if it has a legitimate radix-indicating
@@ -128,11 +128,10 @@ public abstract class Number implements java.io.Serializable {
     @      ensures \result == parseable(nm, 10, bits);
     @    |}
     @*/
-  /*-RAC@ 
-    @   public normal_behavior
-    @     requires bits > 0;
-    @     // String nm is non-null by default
-  //-RAC@   model public helper function static pure boolean decodable( String nm, int bits );
+  //-RAC@   public normal_behavior
+  //-RAC@     requires bits > 0;
+  //-RAC@     // String nm is non-null by default
+  //-RAC@   model public helper static spec_pure boolean decodable( String nm, int bits );
 
 
     /*@ public normal_behavior
@@ -144,35 +143,35 @@ public abstract class Number implements java.io.Serializable {
       @   ensures (* \result is an int approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ int intValue();
+    public abstract /*@ spec_pure helper @*/ int intValue();
 
     /*@ public normal_behavior
       @   ensures (* \result is an long approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ long longValue();
+    public abstract /*@ spec_pure helper @*/ long longValue();
 
     /*@ public normal_behavior
       @   ensures (* \result is an float approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ float floatValue();
+    public abstract /*@ spec_pure helper @*/ float floatValue();
 
     /*@ public normal_behavior
       @   ensures (* \result is an double approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ double doubleValue();
+    public abstract /*@ spec_pure helper @*/ double doubleValue();
 
     /*@ public normal_behavior
       @   ensures (* \result is an byte approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ byte byteValue();
+    public /*@ pure helper @*/ byte byteValue();
 
     /*@ public normal_behavior
       @   ensures (* \result is an short approximation
       @              to the value of this object *);
       @*/
-    public abstract /*@ pure helper @*/ short shortValue();
+    public /*@ pure helper @*/ short shortValue();
 }

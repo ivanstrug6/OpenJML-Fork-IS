@@ -33,7 +33,7 @@ package java.util;
 public interface Iterator<E> {
 
     //@ model public instance \bigint count;
-    //@ model public instance non_null E[] values;
+    //@ model public instance \seq<E> values;
 
     /** Do we have more elements?
      **/
@@ -43,12 +43,12 @@ public interface Iterator<E> {
     /*-ESC@ public model instance boolean moreElements;
     @                               in objectState;
     @*/
-    //-ESC@ public represents moreElements = hasNext(); // FIXME - does this recursive definition work for RAC?
+    //+RAC@ public represents moreElements = hasNext(); // FIXME - does this recursive definition work for RAC?
                                                         // FIXME - should have a warning for ESC
 
     /** Do we ever return null as an element?
      **/
-    //@ instance ghost public boolean returnsNull;
+    //-RAC@ instance model public boolean returnsNull;
 
     // !FIXME! - the aspect of the spec that an iterator is no longer
     // valid if the underlying collection is modified, besides via remove,
@@ -57,22 +57,24 @@ public interface Iterator<E> {
     /** Has remove() been called since the last element was returned?
      *    It is initially false, since no element has yet been returned.
      **/
-    //@ public instance ghost boolean remove_called_since = false;
+    //-RAC@ public instance model boolean remove_called_since;
+    //-RAC@ public initially remove_called_since == false;
 
     /*@ public normal_behavior
+      @    requires true;
       @    // assignable objectState;
-      @    ensures \result <==> moreElements;
+      @    //-RAC@ ensures \result <==> moreElements;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     boolean hasNext();
 
     /*@ public normal_behavior
       @     requires n >= 0;
       @     ensures (* \result is true when this iterator
       @                 has n+1 more elements to return *);
-      public pure model boolean hasNext(int n);  @*/
+      public strictly_pure model boolean hasNext(int n);  @*/
 
-    /*@  public normal_behavior
+    /*-RAC@  public normal_behavior
       @     requires moreElements;
       @     assignable objectState, remove_called_since, moreElements;
       @     ensures !remove_called_since;
@@ -89,15 +91,15 @@ public interface Iterator<E> {
       @    requires n >= 0 && hasNext(n);
       @    ensures (* \result is the nth, counting from 0,
       @             next element that would be returned by this iterator *);
-      @    ensures !returnsNull ==> \result != null;
-      @ for_example
+      @    //-RAC@ ensures !returnsNull ==> \result != null;
+    *//*-RAC@ for_example
       @    public normal_example
       @      requires n == 0 && moreElements;
       @      ensures (* \result == the object that would be
-      @                 returned by calling next() *);
-      public pure model E nthNextElement(int n);  @*/
+      @                 returned by calling next() *);  @*/
+     //@ model public spec_pure E nthNextElement(int n);
 
-    /*@ public behavior
+    /*-RAC@ public behavior
       @   assignable objectState, remove_called_since;
       @   ensures !\old(remove_called_since) && remove_called_since;
       @   signals_only RuntimeException;

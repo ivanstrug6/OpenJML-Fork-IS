@@ -46,6 +46,9 @@ public /*@ pure @*/ final class StrictMath {
 
     private StrictMath();
 
+    //@ axiom \forall double f; true; f == 0 <==> (Double.isPositiveZero(f) || Double.isNegativeZero(f));
+    //@ axiom \forall float f; true; f == 0 <==> (Float.isPositiveZero(f) || Float.isNegativeZero(f));
+
     public static final double E;
     //@ axiom E > 0.0;
 
@@ -156,7 +159,7 @@ public /*@ pure @*/ final class StrictMath {
       @   requires Double.isNaN(angdeg);
       @   ensures Double.isNaN(\result);
       @*/
-    public static /*@ pure @*/ strictfp double toRadians(double angdeg);
+    public static /*@ pure @*/ double toRadians(double angdeg);
 
     /*@ public normal_behavior
       @   requires !Double.isNaN(angrad);
@@ -166,7 +169,7 @@ public /*@ pure @*/ final class StrictMath {
       @   requires Double.isNaN(angrad);
       @   ensures Double.isNaN(\result);
       @*/
-    public static /*@ pure @*/ strictfp double toDegrees(double angrad);
+    public static /*@ pure @*/ double toDegrees(double angrad);
 
     /*@ public normal_behavior
       @ {|
@@ -613,14 +616,9 @@ public /*@ pure @*/ final class StrictMath {
       @              || (isPositiveZero(b) && a == 0);
       @     ensures isPositiveZero(\result);
       @   also
-      @     requires new Float(a).compareTo(new Float(b)) == 0;
-      @     ensures \result == a;
-      @   also
-      @     requires new Float(a).compareTo(new Float(b)) <= 0;
-      @     ensures \result == b;
-      @   also
-      @     requires new Float(a).compareTo(new Float(b)) >= 0;
-      @     ensures \result == a;
+      @     requires !(isPositiveZero(a) && b == 0)
+      @              || (isPositiveZero(b) && a == 0);
+      @     ensures \result == ( Float.compare(a,b) >= 0 ? a : b);
       @   |}
       @ |}
       @*/
@@ -637,14 +635,9 @@ public /*@ pure @*/ final class StrictMath {
       @              || (isPositiveZero(b) && a == 0);
       @      ensures isPositiveZero(\result);
       @   also
-      @      requires new Double(a).compareTo(new Double(b)) == 0;
-      @      ensures \result == a;
-      @   also
-      @      requires new Double(a).compareTo(new Double(b)) <= 0;
-      @      ensures \result == b;
-      @    also
-      @      requires new Double(a).compareTo(new Double(b)) >= 0;
-      @      ensures \result == a;
+      @     requires !(isPositiveZero(a) && b == 0)
+      @              || (isPositiveZero(b) && a == 0);
+      @      ensures \result == (Double.compare(a,b) >= 0 ? a : b);
       @   |}
       @ |}
       @*/
@@ -694,13 +687,13 @@ public /*@ pure @*/ final class StrictMath {
       @     requires (isNegativeZero(a) && b == 0) || (isNegativeZero(b) && a == 0);
       @     ensures isNegativeZero(\result);
       @   also
-      @     requires new Float(a).compareTo(new Float(b)) == 0;
+      @     requires Float.compare(a,b) == 0;
       @     ensures \result == a;
       @   also
-      @     requires new Float(a).compareTo(new Float(b)) <= 0;
+      @     requires Float.compare(a,b) <= 0;
       @     ensures \result == a;
       @   also
-      @     requires new Float(a).compareTo(new Float(b)) >= 0;
+      @     requires Float.compare(a,b) >= 0;
       @     ensures \result == b;
       @   |}
       @ |}
@@ -717,13 +710,13 @@ public /*@ pure @*/ final class StrictMath {
       @     requires (isNegativeZero(a) && b == 0) || (isNegativeZero(b) && a == 0);
       @     ensures isNegativeZero(\result);
       @   also
-      @     requires new Double(a).compareTo(new Double(b)) == 0;
+      @     requires Double.compare(a,b) == 0;
       @     ensures \result == a;
       @   also
-      @     requires new Double(a).compareTo(new Double(b)) <= 0;
+      @     requires Double.compare(a,b) <= 0;
       @     ensures \result == a;
       @   also
-      @     requires new Double(a).compareTo(new Double(b)) >= 0;
+      @     requires Double.compare(a,b) >= 0;
       @     ensures \result == b;
       @   |}
       @ |}
@@ -731,23 +724,19 @@ public /*@ pure @*/ final class StrictMath {
     public static /*@ pure @*/ double min(double a, double b);
     
     /*@ public static model pure boolean isPositiveZero( double a) {
-      return new Double(a).equals(new Double("+0.0"));
-      //return java.lang.Double.isPositiveZero(a);
+          return Double.valueOf(a).equals(Double.parseDouble("+0.0"));
         }
     
         public static model pure boolean isNegativeZero( double a) {
-      return new Double(a).equals(new Double("-0.0"));
-      //return java.lang.Double.isNegativeZero(a);
+          return Double.valueOf(a).equals(Double.parseDouble("-0.0"));
         }
     
         public static model pure boolean isPositiveZero( float a) {
-      return new Float(a).equals(new Float("+0.0"));
-      //return java.lang.Float.isPositiveZero(a);
+          return Float.valueOf(a).equals(Float.parseFloat("+0.0"));
         }
     
         public static model pure boolean isNegativeZero( float a) {
-      return new Float(a).equals(new Float("-0.0"));
-      //return java.lang.Float.isNegativeZero(a);
+          return Float.valueOf(a).equals(Float.parseFloat("-0.0"));
         }
     
     // FIXME - can't seem to reference model methods in other specs

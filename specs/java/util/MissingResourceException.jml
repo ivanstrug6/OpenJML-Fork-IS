@@ -3,10 +3,11 @@ package java.util;
 // FIXME - needs completion; Throwable non null? what about message
 // Java 1.6 differs in adding a protected constructor
 
+//@ nullable_by_default
 public class MissingResourceException extends RuntimeException {
 
-    //@ public non_null model String theKey;
-    //@ public non_null model String theClass;
+    //@ model public non_null String theKey;
+    //@ model public non_null String theClass;
     
     /*@ public normal_behavior
       @   ensures standardThrowable(s);

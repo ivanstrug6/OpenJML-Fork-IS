@@ -3,8 +3,6 @@ package javax.crypto;
 //@ non_null_by_default
 public class KeyAgreement {
     
-      private static final sun.security.util.Debug debug;
-      private static final sun.security.util.Debug pdebug;
       private static final boolean skipDebug;
       private java.security.Provider provider;
       private KeyAgreementSpi spi;
@@ -21,7 +19,7 @@ public class KeyAgreement {
       public final java.lang.String getAlgorithm();
       
       //@ public normal_behavior
-      //@ model public static final pure function boolean validAlgorithm(java.lang.String algorithm);
+      //@ model public static final spec_pure boolean validAlgorithm(java.lang.String algorithm);
 
       //@ public normal_behavior
       //@   requires validAlgorithm(s);

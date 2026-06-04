@@ -441,7 +441,7 @@ public class GregorianCalendar extends Calendar {
       @     ensures \result == millis && 0 <= millis
       @             && millisAreBeforeCurrent(millis);
       @*/
-    //@ public pure model long computeMillis();
+    //@ public spec_pure model long computeMillis();
 
     /** This should return the correct time zone offset for the current
      * time zone and the given time, specified by the argument millis.
@@ -452,7 +452,7 @@ public class GregorianCalendar extends Calendar {
     /* FIXME @ public normal_behavior
       @     ensures -ONE_DAY <= \result && \result <= ONE_DAY;
       @*/
-    //@ public pure model int computeZoneOffset(long millis);
+    //@ public spec_pure model int computeZoneOffset(long millis);
        
     //------------------------------------------------------------------------
     // Class Method Specifications
@@ -460,15 +460,15 @@ public class GregorianCalendar extends Calendar {
 
     /*@ public normal_behavior
       @ assignable zone, locale;
-      @ ensures zone.equals(TimeZone.getDefault())
-      @         && locale.equals(Locale.getDefault());
+      @ ensures this.zone == TimeZone.getDefault()
+      @         && this.locale == Locale.getDefault();
       @*/
     public GregorianCalendar();
 
     /*@ public normal_behavior
       @ requires zone != null;
-      @ ensures this.zone.equals(zone)
-      @         && locale.equals(Locale.getDefault());
+      @ ensures this.zone == zone
+      @         && this.locale == Locale.getDefault();
       @ pure
       @*/
     public GregorianCalendar(TimeZone zone);
@@ -476,14 +476,15 @@ public class GregorianCalendar extends Calendar {
     /*@ public normal_behavior
       @ requires aLocale != null;
       @ assignable zone, locale;
-      @ ensures zone.equals(TimeZone.getDefault())
-      @         && locale.equals(aLocale);
+      @ ensures this.zone == TimeZone.getDefault()
+      @         && this.locale == aLocale;
       @*/
     public GregorianCalendar(Locale aLocale);
 
     /*@ public normal_behavior
       @ requires zone != null && aLocale != null;
-      @ ensures this.zone.equals(zone) && locale.equals(aLocale);
+      @ ensures this.zone == zone
+      @         && this.locale == aLocale;
       @ ensures_redundantly milliFieldsAreSet();
       @ pure
       @*/
@@ -497,29 +498,29 @@ public class GregorianCalendar extends Calendar {
       @         && locale.equals(Locale.getDefault());
       @ ensures_redundantly fields[YEAR] == year 
       @                     && fields[MONTH] == month
-      @                     && fields[DATE] == date
+      @                     && fields[DATE] == dayOfMonth
       @                     && isSet[YEAR] && isSet[MONTH]
       @                     && isSet[DATE] && calendarFieldsAreSet();
       @*/
-    public GregorianCalendar(int year, int month, int date);
+    public GregorianCalendar(int year, int month, int dayOfMonth);
 
     /*@ public normal_behavior
       @ assignable zone, locale;
       @ assignable_redundantly fields[YEAR], fields[MONTH], fields[DATE],
       @                        fields[HOUR_OF_DAY], fields[MINUTE], 
       @                        isTimeSet, areFieldsSet, isSet[*];
-      @ ensures zone.equals(TimeZone.getDefault()) &&
-      @         locale.equals(Locale.getDefault());
+      @ ensures this.zone == TimeZone.getDefault() &&
+      @         this.locale == Locale.getDefault();
       @ ensures_redundantly fields[YEAR] == year
       @                     && fields[MONTH] == month
-      @                     && fields[DATE] == date
-      @                     && fields[HOUR_OF_DAY] == hour
+      @                     && fields[DATE] == dayOfMonth
+      @                     && fields[HOUR_OF_DAY] == hourOfDay
       @                     && fields[MINUTE] == minute
       @                     && isSet[YEAR] && isSet[MONTH]
       @                     && isSet[DATE] && isSet[HOUR_OF_DAY]
       @                     && isSet[MINUTE] && calendarFieldsAreSet();
       @*/
-    public GregorianCalendar(int year, int month, int date, int hour,
+    public GregorianCalendar(int year, int month, int dayOfMonth, int hourOfDay,
                              int minute);
 
     /*@ public normal_behavior
@@ -528,12 +529,12 @@ public class GregorianCalendar extends Calendar {
       @                        fields[HOUR_OF_DAY], fields[MINUTE],
       @                        fields[SECOND], isTimeSet, areFieldsSet,
       @                        isSet[*];
-      @ ensures zone.equals(TimeZone.getDefault())
-      @         && locale.equals(Locale.getDefault());
+      @ ensures this.zone == TimeZone.getDefault() &&
+      @         this.locale == Locale.getDefault();
       @ ensures_redundantly fields[YEAR] == year
       @                     && fields[MONTH] == month
-      @                     && fields[DATE] == date
-      @                     && fields[HOUR_OF_DAY] == hour
+      @                     && fields[DATE] == dayOfMonth
+      @                     && fields[HOUR_OF_DAY] == hourOfDay
       @                     && fields[MINUTE] == minute
       @                     && fields[SECOND] == second
       @                     && isSet[YEAR] && isSet[MONTH]
@@ -541,10 +542,10 @@ public class GregorianCalendar extends Calendar {
       @                     && isSet[MINUTE] && isSet[SECOND]
       @                     && calendarFieldsAreSet();
       @*/
-    public GregorianCalendar(int year, int month, int date, int hour,
+    public GregorianCalendar(int year, int month, int dayOfMonth, int hourOfDay,
                              int minute, int second);
 
-    /*@ public normal_behavior
+    /* FIXME @ public normal_behavior
       @ old long cutoverDay = floorDivide(gregorianCutover, ONE_DAY);
       @ old GregorianCalendar cal = new GregorianCalendar(getTimeZone());
       @ {|
@@ -777,11 +778,11 @@ public class GregorianCalendar extends Calendar {
       @    assignable fields[*];
       @ also
       @  public model_program {
-      @      if (up) { roll(fld, 1); }
-      @      else { roll(fld, -1); }
+      @      if (up) { roll(field, 1); }
+      @      else { roll(field, -1); }
       @  }
       @*/
-    public void roll(int fld, boolean up);
+    public void roll(int field, boolean up);
 
     /*@ also
       @   public normal_behavior
@@ -795,14 +796,15 @@ public class GregorianCalendar extends Calendar {
       @     assignable \nothing;
       @     ensures isComplete();
       @ also
-      @   public normal_behavior
-      @     old Date start = getTime();
-      @     old int oldHour = get(field);
-      @     old int newHour = computeNewHour(field, amount, start, oldHour);
+      @   public normal_behavior  // FIXME
       @     requires field == HOUR || field == HOUR_OF_DAY;
       @     assignable time, isTimeSet, areFieldsSet, areAllFieldsSet;
-      @     ensures getTimeInMillis() == start.getTime()
+      @     {  ghost Date start = getTime();
+      @        ghost int oldHour = get(field);
+      @        ghost int newHour = computeNewHour(field, amount, start, oldHour);
+      @        assume getTimeInMillis() == start.getTime()
       @                                  + ONE_HOUR * (newHour - oldHour);
+      @     }
       @     ensures_redundantly milliFieldsAreSet();
       @ also
       @   public normal_behavior

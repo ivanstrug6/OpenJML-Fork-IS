@@ -1,17 +1,17 @@
 package java.lang;
 
 //@ non_null_by_default
-public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.Serializable {
+public abstract class Enum<E  extends Enum<E>> implements Comparable<E>, java.io.Serializable {
       /*@ spec_public */ private final String name;
       /*@ spec_public */ private final int ordinal;
       
       //@ public normal_behavior
       //-RAC@   ensures \result == name;
-      //@ pure
+      //@ spec_pure
       public final String name();
       //@ public normal_behavior
       //-RAC@   ensures \result == ordinal;
-      //@ pure
+      //@ spec_pure
       public final int ordinal();
       //@ protected normal_behavior
       //-RAC@   ensures this.name == name;
@@ -20,7 +20,7 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.
       protected Enum(String name, int ordinal);
       //@ also public code normal_behavior
       //-RAC@   ensures \result == name;
-      //@ pure
+      //@ spec_pure
       public String toString();
       
 //      public final boolean equals(Object);
@@ -35,13 +35,13 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, java.io.
 //      public final Class<E> getDeclaringClass();
 
       //@ public behavior 
-      //@   ensures \result.name().equals(v);
-      //@   ensures \result.getClass() == clazz;
+      //@   ensures \result.name().equals(name);
+      //@   ensures \result.getClass() == enumClass;
       //@   signals_only IllegalArgumentException, NullPointerException;
-      //@   signals (NullPointerException) v == null;
+      //@   signals (NullPointerException) name == null;
       //@   signals (IllegalArgumentException) true; // FIXME - no matching name
       //@ pure 
-      public static <T extends Enum<T>> T valueOf(Class<T> clazz, /*@ nullable */ String v);
+      public static <T extends Enum<T>> T valueOf(Class<T> enumClass, /*@ nullable */ String name);
 
 //      protected final void finalize();
 //      private void readObject(java.io.ObjectInputStream) throws java.io.IOException, ClassNotFoundException;

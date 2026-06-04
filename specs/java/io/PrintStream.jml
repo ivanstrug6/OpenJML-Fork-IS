@@ -19,55 +19,57 @@
 // the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 
 package java.io;
-//@ model import java.util.Locale;
+import java.util.Locale;
 
 /** JML's specification of PrintStream
  * @author David Cok
  * @author Gary T. Leavens
  * @author Patrice Chalin
  */
+//@ non_null_by_default
 public class PrintStream extends FilterOutputStream implements Closeable, Appendable {
 
-    //-RAC@ model public non_null String outputText; in outputBytes;
+    //-RAC@ model public \string outputText; in outputBytes, chars;  // FIXME - unify outputText and chars; and outputBytes?
     //-RAC@ model public boolean endsInNewLine; in outputText;
-    //-RAC@ ghost public non_null static final String eol;
-    //-RAC@ public static invariant \invariant_for(eol) && eol.length() > 0;
+    // -RAC@ ghost public static final String eol;
+    // -RAC@ public static invariant \invariant_for(eol) && eol.length() > 0;
+    // -RAC@ represents outputText = chars;
 
+    //@ spec_public
+    private boolean trouble; //-RAC@ in error;
     //-RAC@ public model boolean error;
+    //-RAC@ represents error = trouble;
     
-    //-RAC@ public invariant outputText != null && \invariant_for(outputText);
+    //-RAC@ public invariant outputText.length >= 0;
     
     //@ static_initializer
 
     /*-RAC@ public normal_behavior
-    @   requires os != null;
-    @   ensures outputText != null && outputText.isEmpty();
+    @   ensures outputText.isEmpty();
     @   ensures !endsInNewLine;
-    @   ensures os.isOpen ==> isOpen;
-    @   ensures underlyingStream == os;
+    @   ensures out.isOpen ==> isOpen;
+    @   ensures underlyingStream == out;
     @*/
     //@ pure
-    public PrintStream(OutputStream os);
+    public PrintStream(OutputStream out);
 
     /*-RAC@ public normal_behavior
     @   ensures outputText.isEmpty();
-    @   ensures outputText.equals("");
     @   ensures !endsInNewLine;
-    @   ensures os.isOpen ==> isOpen;
-    @   ensures underlyingStream == os;
+    @   ensures out.isOpen ==> isOpen;
+    @   ensures underlyingStream == out;
     @*/
     //@ pure
-    public PrintStream(OutputStream os, boolean autoFlush);
+    public PrintStream(OutputStream out, boolean autoFlush);
 
     /*-RAC@ public normal_behavior
     @   ensures outputText.isEmpty();
-    @   ensures outputText.equals("");
     @   ensures !endsInNewLine;
-    @   ensures os.isOpen ==> isOpen;
-    @   ensures underlyingStream == os;
+    @   ensures out.isOpen ==> isOpen;
+    @   ensures underlyingStream == out;
     @*/
     //@ pure
-    public PrintStream(OutputStream os, boolean autoFlush, String enoding)
+    public PrintStream(OutputStream out, boolean autoFlush, String enoding)
         throws java.io.UnsupportedEncodingException;
 
 
@@ -75,7 +77,7 @@ public class PrintStream extends FilterOutputStream implements Closeable, Append
     @   requires true;
     @   modifies outputText, endsInNewLine;
     @   ensures endsInNewLine && isOpen;
-    @   ensures outputText.equals(\old(outputText) + eol);
+    @   ensures outputText == \old(outputText) + CharSequence.eol.chars;
     @*/
     public void println();
 
@@ -96,34 +98,38 @@ public class PrintStream extends FilterOutputStream implements Closeable, Append
     /*-RAC@ public normal_behavior
     @   requires true;
     @   modifies outputText, endsInNewLine;
-    @   ensures outputText.equals(\old(outputText) + c) && isOpen;
+    @   ensures (outputText == \old(outputText) + c) && isOpen;
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void print(char c);
 
     /*-RAC@ public normal_behavior
     @   requires true;
     @   modifies outputText, endsInNewLine;
     @   ensures endsInNewLine && isOpen;
-    @   ensures outputText.equals(\old(outputText) + c + eol); 
+    @   ensures outputText == \old(outputText) + x + CharSequence.eol.chars; 
     @*/
-    public void println(char c); 
+    //+RAC@ public normal_behavior assigns objectState; 
+    public void println(char x); 
 
     /*-RAC@ public normal_behavior
     @   requires true;
-    @   modifies outputText, endsInNewLine;
-    @   ensures endsInNewLine && isOpen;
-    @   ensures s != null ==> outputText.equals(\old(outputText) + s + eol);
+    @   modifies outputText;
+    @   ensures endsInNewLine & isOpen;
+    @   ensures x != null ==> outputText == \old(outputText) + x.chars + CharSequence.eol.chars;
     @*/
-    public void println(String s);
+    //+RAC@ public normal_behavior assigns objectState; 
+    public void println(/*@ nullable */String x);
 
     /*-RAC@ public normal_behavior
     @   requires true;
-    @   modifies outputText, endsInNewLine;
-    @   ensures endsInNewLine && isOpen;
-    @   //ensures s != null ==> outputText.equals(\old(outputText) + s);
-    @   ensures (s != null && \old(outputText).isEmpty()) ==> outputText == s;
+    @   modifies outputText;
+    @   ensures isOpen;
+    @   ensures s != null ==> outputText == \old(outputText) + s.chars;
+    @   ensures (s != null && \old(outputText).isEmpty()) ==> outputText == s.chars;
     @*/
-    public void print(String s);
+    //+RAC@ public normal_behavior assigns objectState; 
+    public void print(/*@ nullable */String s);
 
     public void print(double Param0);
 
@@ -137,76 +143,88 @@ public class PrintStream extends FilterOutputStream implements Closeable, Append
     @   requires true;
     @   modifies outputText, endsInNewLine;
     @   ensures endsInNewLine && isOpen;
-    @   ensures (o!=null)==> outputText.equals(\old(outputText) + o.ptoString() + eol);
-    @   ensures (o==null)==> outputText.equals(\old(outputText)+"null"+eol);
+    @   ensures outputText == (obj != null ? (\old(outputText) + obj.modelString + CharSequence.eol.chars)
+    @                                      : (\old(outputText) + "null".chars + CharSequence.eol.chars));
     @*/
-    public void println(Object o);
+    //+RAC@ public normal_behavior assigns objectState; 
+    public void println(/*@ nullable */Object obj);
 
     /*-RAC@ public normal_behavior
     @   requires true;
     @   modifies outputText, endsInNewLine;
     @   ensures isOpen;
-    @   ensures (o!=null)==> outputText.equals(\old(outputText) + o.ptoString());
-    @   ensures (o==null)==> outputText.equals(\old(outputText)+"null");
+    @   ensures outputText == (obj != null ? (\old(outputText) + obj.modelString)
+    @                                      : (\old(outputText) + "null".chars));
     @*/
-    public void print(Object o);
+    //+RAC@ public normal_behavior assigns objectState; 
+    public void print(/*@ nullable */Object obj);
 
-    /*-RAC@ requires true;
+    /*-RAC@ public normal_behavior
+    @ requires true;
     @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void println(boolean b);
     
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures \result == this;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public PrintStream printf(Locale locale, String format, Object ... args);
 
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures \result == this;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public PrintStream printf(String format, Object ... args);
 
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void print(boolean b);
 
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void print(int i);
 
-    /*-RAC@ requires true;
-    @ modifies outputText, endsInNewLine;
+    /*-RAC@ public normal_behavior
+    @ requires true;
+    @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void println(int i);
 
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void print(long i);
 
-    /*-RAC@
+    /*-RAC@ public normal_behavior
     @ assignable outputText, endsInNewLine;
     @ ensures endsInNewLine && isOpen;
     @ ensures outputText.startsWith(\old(outputText));
     @*/
+    //+RAC@ public normal_behavior assigns objectState; 
     public void println(long i);
 
     /*-RAC@ also
@@ -219,6 +237,7 @@ public class PrintStream extends FilterOutputStream implements Closeable, Append
       @   modifies output, error;
       @   signals (IOException) false;
       @*/
+    //+RAC@ also assigns trouble, objectState; 
     public void flush();
 
     /*-RAC@

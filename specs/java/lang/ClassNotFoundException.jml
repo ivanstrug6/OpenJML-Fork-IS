@@ -1,18 +1,16 @@
 package java.lang;
 
 // FIXME - complete this
- 
-public class ClassNotFoundException extends Exception {
+//@ nullable_by_default 
+public class ClassNotFoundException extends ReflectiveOperationException {
   
-    /*@ public normal_behavior
-      @   ensures standardThrowable();
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable();
     //@ pure
     public ClassNotFoundException();
   
-    /*@ public normal_behavior
-      @   ensures standardThrowable(s);
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable(s);
     //@ pure
     public ClassNotFoundException(String s);
 }

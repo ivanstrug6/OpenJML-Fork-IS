@@ -7,9 +7,9 @@ public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V
   static final java.lang.Object NULL_KEY;
   private static final long serialVersionUID;
   
-  //@ model public JMLDataGroup content;
-  //@ model public map<K,V> _map; //@ in content;
-  //@ model public set<K> _keyset; //@ in content;
+  //@ model public \datagroup content;
+  //@ model public \map<K,V> _map; //@ in content;
+  //@ model public \set<K> _keyset; //@ in content;
   //@ spec_public
   int size; //@ in content;
   
@@ -27,12 +27,12 @@ public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V
 
   //@ also public normal_behavior
   //@   ensures \result == size;
-  //@ pure
+  //@ spec_pure helper
   public int size();
 
   //@ also public normal_behavior
   //@   ensures \result == (size == 0);
-  //@ pure
+  //@ spec_pure
   public boolean isEmpty();
   
   //@ public normal_behavior
@@ -40,46 +40,49 @@ public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V
   public IdentityHashMap(Map<? extends K, ? extends V> m); // TODO
   
   //@ also public normal_behavior
-  //@   requires o == null || \typeof(o) <: \type(K);
+  //@   requires o == null || \typeof(o) <:= \type(K);
   //@   ensures \result == (_keyset.contains((K)o) ? _map.get((K)o) : null);
-  //@ pure nullable
+  //@ spec_pure nullable
+  @SuppressWarnings("unchecked")
   public V get(Object o);
   
   //@ also public normal_behavior
-  //@   requires o == null || \typeof(o) <: \type(K);
+  //@   requires o == null || \typeof(o) <:= \type(K);
   //@   ensures \result == _keyset.contains((K)o);
-  //@ pure
+  //@ spec_pure
+  @SuppressWarnings("unchecked")
   public boolean containsKey(/*(@ nullable */ Object o);
 
   //@ also public normal_behavior
   //@   ensures \result == \exists K k; _keyset.contains(k); o == _map[k];
-  //@ pure
+  //@ spec_pure
   public boolean containsValue(/* nullable */ Object o);
 
   //@ also public normal_behavior
-  //@   writes content;
+  //@   assigns content;
   //@   ensures _map == \old(_map).put(k,v);
   //@   ensures _keyset == \old(_keyset).add(k);
   //@   ensures size == (\old(_keyset).contains(k) ? \old(size) : \old(size)+1);
   public V put(/*@ nullable */K k, /*@ nullable */V v);
 
   //@ also public normal_behavior
-  //@   writes content;
+  //@   assigns content;
   public void putAll(Map<? extends K, ? extends V> m); // TODO
 
   //@ also public normal_behavior
   //@   requires _keyset.contains((K)o);
-  //@   writes content;
+  //@   assigns content;
   //@   ensures size == \old(size) - 1;
   //@   ensures _keyset == \old(_keyset).remove((K)o);
   //@   ensures _map == \old(_map);
   //@ also public normal_behavior
   //@   requires !_keyset.contains((K)o);
-  //@   writes \nothing;
+  //@   assigns \nothing;
+  @SuppressWarnings("unchecked")
   public V remove(Object o);
   
   //@ also public normal_behavior
-  //@   writes content;
+  //@   assigns content;
   //@   ensures size == 0 && _keyset.isEmpty();
   public void clear();
   
@@ -87,6 +90,7 @@ public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V
   //@   old IdentityHashMap<K,V> m = (IdentityHashMap)o;
   //@   ensures \result == (this.size == m.size && this._keyset == m._keyset && (\forall K k; _keyset.contains(k); this._map.get(k) == m._map.get(k)));
   //@ pure
+  @SuppressWarnings("unchecked")
   public boolean equals(Object o); // TODO
   
   //@ also public normal_behavior
@@ -113,11 +117,11 @@ public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V
   public Set<Map.Entry<K, V>> entrySet();  // TODO
 
   //@ also public normal_behavior
-  //@   writes \everything; // Whatever f does to each of the pairs in the map
+  //@   assigns \everything; // Whatever f does to each of the pairs in the map
   public void forEach(java.util.function.BiConsumer<? super K, ? super V> f);  // TODO
 
   //@ also public normal_behavior
-  //@   writes content;
+  //@   assigns content;
   public void replaceAll(java.util.function.BiFunction<? super K, ? super V, ? extends V> f); // TODO
 
   //private void closeDeletion(int);

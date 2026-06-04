@@ -31,48 +31,46 @@ package java.lang;
 //@ non_null_by_default
 public final /*@ pure @*/ class Boolean implements java.io.Serializable, Comparable<Boolean> {
 
-    //@ non_null
+
     public static final Boolean TRUE;
 
-    //@ non_null
     public static final Boolean FALSE;
 
-    //@ non_null
-    public static final Class<Boolean>    TYPE;       // 1.5 DIFFERENCE
+    public static final Class<Boolean>    TYPE = boolean.class;       // 1.5 DIFFERENCE
 
     //@ model public static final String TRUE_S = "true";
     //@ model public static final String FALSE_S = "false";
     
     //@ public normal_behavior
     //@   ensures TRUE != null && FALSE != null && TRUE != FALSE;
-    //@   ensures TRUE.theBoolean;  // FIXME - why does theBoolean work, but not booleanValue()
-    //@   ensures !FALSE.theBoolean;
+    //-RAC@   ensures TRUE.theBoolean;  // FIXME - why does theBoolean work, but not booleanValue()
+    //-RAC@   ensures !FALSE.theBoolean;
     //@   ensures TYPE == boolean.class;
     //@ static_initializer
-    //@ public static final invariant TRUE != null && FALSE != null && TRUE != FALSE && TRUE.theBoolean && !FALSE.theBoolean;
+    //-RAC@ public static final invariant TRUE != null && FALSE != null && TRUE != FALSE && TRUE.theBoolean && !FALSE.theBoolean;
 
-    //@ public model boolean theBoolean; in objectState;
-    //+RAC@ public represents theBoolean = booleanValue();
+    //-RAC@ public model final boolean theBoolean; in objectState;
+    //  FIXME: +RAC@ public represents theBoolean = booleanValue();
 
     /*@ public normal_behavior
-      @   ensures theBoolean == value;
+      @   //-RAC@ ensures theBoolean == value;
       @*/
     //@ pure helper
     public Boolean(boolean value);
 
-    /*@ //public normal_behavior  // FIXME -
+    /*@ public normal_behavior  ensures true; // FIXME -
       @ //  ensures \result <==> (TRUE_S.equalsIgnoreCase(s));
-      @ model public static pure helper function boolean decode( nullable String s);
+      @ model public static spec_pure helper boolean decode( nullable String s);
       @
       @ public normal_behavior
       @   ensures \result == ( b ? TRUE_S : FALSE_S );
-      @ model public static pure helper function String canonicalString(boolean b);
+      @ model public static spec_pure helper String canonicalString(boolean b);
       @*/
 
     //@ axiom decode(canonicalString(true)) == true;
     //@ axiom decode(canonicalString(false)) == false;
-    //@ axiom TRUE.theBoolean;
-    //@ axiom !FALSE.theBoolean;
+    //-RAC@ axiom TRUE.theBoolean;
+    //-RAC@ axiom !FALSE.theBoolean;
     //@ axiom decode(TRUE_S);
     //@ axiom decode("True");
     //@ axiom decode("TRUE");
@@ -84,27 +82,26 @@ public final /*@ pure @*/ class Boolean implements java.io.Serializable, Compara
     //@ axiom (\forall String s,ss; s.equals(ss); decode(s) == decode(ss));
 
     /*@ public normal_behavior
-      @   ensures theBoolean == decode(s);
+      @   //-RAC@ ensures theBoolean == decode(s);
       @*/
     public /*@ pure @*/ Boolean(/*@ nullable */ String s);
     
     /*@ public normal_behavior
-      @   ensures \result == theBoolean;
+      @   //-RAC@ ensures \result == theBoolean;
       @*/
-    public /*@ pure helper function @*/ boolean booleanValue();
+    public /*@ spec_pure helper @*/ boolean booleanValue();
 
     // NOTE: The result is not fresh
     /*@ public normal_behavior
       @   ensures \result != null && \result.booleanValue() == b;
       @   ensures \result == ( b ? TRUE : FALSE );
       @*/
-    public static /*@ pure helper function @*/ Boolean valueOf(boolean b);
-
+    public static /*@ spec_pure helper @*/ Boolean valueOf(boolean b);
 
     /*@ public normal_behavior
       @   ensures \result == ( decode(s) ? TRUE : FALSE );
       @*/
-    public static /*@ pure helper function @*/ Boolean valueOf(/*@ nullable */ String s);
+    public static /*@ spec_pure helper @*/ Boolean valueOf(/*@ nullable */ String s);
 
     // NOTE: The results are interned (not fresh) Strings.  // FIXME - is this actually certain to be the case
     /*@ public normal_behavior
@@ -112,18 +109,19 @@ public final /*@ pure @*/ class Boolean implements java.io.Serializable, Compara
       @   ensures \result == (canonicalString(b));
       @   ensures String.isInterned(\result);
       @*/
-    public static /*@ pure helper function @*/ String toString(boolean b);
+    public static /*@ spec_pure helper @*/ String toString(boolean b);
 
     /*@ also
       @ public normal_behavior
-      @   ensures decode(\result) == theBoolean;
-      @   ensures \result == canonicalString(theBoolean);
+      @   //-RAC@ ensures decode(\result) == theBoolean;
+      @   //-RAC@ensures \result == canonicalString(theBoolean);
       @*/
-    //@ pure helper function
+    //@ spec_pure helper
     public String toString();
     
     //@ public normal_behavior
     //@   ensures \result == decode(s);
+    //@ spec_pure
     public static boolean parseBoolean(String s);
 
     //+ESC@ public static final model int TRUE_HC;
@@ -133,7 +131,7 @@ public final /*@ pure @*/ class Boolean implements java.io.Serializable, Compara
     // inherited specification
     //+ESC@ also public normal_behavior
     //+ESC@   ensures \result == ( theBoolean ? TRUE_HC : FALSE_HC);
-    //@ pure
+    //@ spec_pure
     public int hashCode();
 
     /*@ also
@@ -147,17 +145,19 @@ public final /*@ pure @*/ class Boolean implements java.io.Serializable, Compara
     //@   ensures (this.booleanValue() == b.booleanValue()) ==> \result == 0;
     //@   ensures (this.booleanValue() && !b.booleanValue()) ==> \result > 0;
     //@   ensures (!this.booleanValue() && b.booleanValue()) ==> \result < 0;
+    //@ spec_pure
     public int compareTo(Boolean b); // null argument produces exception
     
     //@ public normal_behavior
     //@   ensures (b == bb) ==> \result == 0;
     //@   ensures (b && !bb) ==> \result > 0;
     //@   ensures (!b && bb) ==> \result < 0;
+    //@ no_state
     public static int compare(boolean b, boolean bb);
     
     /*@ public normal_behavior
       @   ensures \result <==> (name != null && 
                                 decode(System.getProperty(name)));
       @*/
-    public static /*@ pure helper function @*/ boolean getBoolean(/*@ nullable */ String name); 
+    public static /*@ spec_pure helper @*/ boolean getBoolean(/*@ nullable */ String name); 
 }

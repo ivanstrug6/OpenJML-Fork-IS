@@ -21,16 +21,17 @@
 package java.lang;
 
 /** JML's specification of java.lang.VirtualMachineError */
+//@ nullable_by_default
 public abstract class VirtualMachineError extends Error {
 
-    /*@ public normal_behavior
-      @   ensures standardThrowable();
-      @*/
-    public /*@ pure @*/ VirtualMachineError();
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable();
+    //@ pure
+    public VirtualMachineError();
 
-    /*@ public normal_behavior
-      @   ensures standardThrowable(s);
-      @*/
-    public /*@ pure @*/ VirtualMachineError(String s);
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable(message);
+    //@ pure
+    public VirtualMachineError(String message);
 }
 

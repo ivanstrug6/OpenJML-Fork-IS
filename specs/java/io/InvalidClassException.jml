@@ -1,10 +1,12 @@
 package java.io;
 // FIXME - neeeds completion
  
+//@ nullable_by_default
 public class InvalidClassException extends ObjectStreamException {
   
     public String classname;
     
+    //@ helper
     public String getMessage();
     
     /*@ public normal_behavior

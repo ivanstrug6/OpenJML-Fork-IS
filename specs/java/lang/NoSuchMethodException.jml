@@ -1,16 +1,15 @@
 package java.lang;
  
-public class NoSuchMethodException extends Exception {
+//@ nullable_by_default
+public class NoSuchMethodException extends ReflectiveOperationException {
   
-    /*@ public normal_behavior
-      @   ensures standardThrowable();
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable();
     //@ pure
     public NoSuchMethodException();
   
-    /*@ public normal_behavior
-      @   ensures standardThrowable(s);
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable(s);
     //@ pure
     public NoSuchMethodException(String s);
 }

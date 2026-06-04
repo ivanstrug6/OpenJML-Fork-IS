@@ -49,13 +49,13 @@ public interface Comparable<T> {
       @ model static pure int sgn(int i);
       @*/
 
-//    /*@ public normal_behavior
-//      @    requires true;
-//      @    ensures \result ==> \typeof(o) <: \type(T);
-//      @ // subclasses may strengthen this contract.
-//      @ public model pure boolean
-//      @ definedComparison(non_null Object o);
-//      @*/
+    /*@ public normal_behavior
+      @    requires true;
+      @    ensures \result ==> \typeof(o) <:= \type(T);
+      @ // subclasses may strengthen this contract.
+      @ public model pure boolean
+      @ definedComparison(non_null Object o);
+      @*/
     
     /** Override consistentWithEquals to indicate whether a given class's compareTo ordering
      * is consistent with equals: a.equals(b) <==> a.compareTo(b) ==0.  
@@ -63,25 +63,28 @@ public interface Comparable<T> {
      */
     //@ public behavior
     //@    signals (Exception) false;
-    //@ pure public model boolean consistentWithEquals();
+    //@ pure public model boolean consistentWithEquals() { return true; }
     
     /** This declares that the value of consistentWithEquals() is the same for all members of a class.
      * (We don't make consistentWithEquals static so it can be overridden and dynamically dispatched.)
      */
-    // the variable in a forall is not null
+    // the variable in a \forall is not null
     // FIXME @ public invariant (\forall Comparable<T> o; \typeof(o) == \typeof(this) ==> o.consistentWithEquals() == this.consistentWithEquals());
 
     // FIXME @ public invariant consistentWithEquals() ==> (\forall T o; equals(o) <==> compareTo(o) == 0);
 
-    /*-RAC@ public normal_behavior
-      @      requires \typeof(o) <: \typeof(this);
+    /*@ public normal_behavior
+      @      requires o != null;
+      @      //-RAC@ requires \typeof(o) <:= \typeof(this);
       @      ensures  o == this ==> \result == 0; // reflexive
       @ //also public normal_behavior
-      @ //   requires (\typeof(o) <: \type(Comparable<T>)) && \typeof(this) <: \type(T);
+      @ //   requires (\typeof(o) <:= \type(Comparable<T>)) && \typeof(this) <:= \type(T);
       @ //   ensures sgn(\result) == - sgn(((Comparable<T>)o).compareTo((T)this)); // antisymmetric
       @ also public exceptional_behavior
-      @       requires !(\typeof(o) <: \typeof(this));
+      @       requires o == null;
+      @       signals_only NullPointerException;
+      @ //also public exceptional_behavior
+      @ //      requires o != null && !(\typeof(o) <: \typeof(this));  FIXME
       @*/
-    // A null argument is supposed to throw a NullPointerException
-    /*@ pure @*/ int compareTo(/*@ non_null */ T o); // FIXME - change pure to query?
+    /*@ pure @*/ int compareTo(/*@ nullable */ T o); // FIXME - change pure to query?
 }

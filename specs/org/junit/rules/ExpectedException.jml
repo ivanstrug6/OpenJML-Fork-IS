@@ -2,10 +2,10 @@ package org.junit.rules;
 
 import org.hamcrest.Matcher;
 
-//@ non_null_by_default
-public class ExpectedException {
+//@ non_null_by_default // FIXME - verify this
+public class ExpectedException implements TestRule {
     
-    //@ model public JMLDataGroup expectedExceptions;
+    //@ model public \datagroup expectedExceptions;
     //@ model public boolean exceptionAllowed; in expectedExceptions;
     
     //@ public normal_behavior

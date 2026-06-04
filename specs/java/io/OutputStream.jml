@@ -27,16 +27,17 @@ package java.io;
 /** JML's specification of OutputStream.
  * @author Gary T. Leavens
  */
+//@ non_null_by_default
 public abstract class OutputStream extends Object implements Closeable, Flushable {
 
     // FIELDS
     /** The output data group is used to specify things like caching,
      * and to make sure that methods that might produce some output
      * have a side effect on some datagroup. */
-    //-RAC@ public model JMLDataGroup output; in objectState;
+    //-RAC@ model public \datagroup output; in objectState;
 
     /** The bytes that are to be (or have been) output. */
-    //-RAC@ public model non_null byte[] outputBytes; in output;
+    //-RAC@ public model byte non_null [] outputBytes; in output; // FIXME - fix position of non_null
 
     
     /** Is this file open? */
@@ -94,7 +95,7 @@ public abstract class OutputStream extends Object implements Closeable, Flushabl
       @   signals (IOException) (* an IO error occured *);
       @   signals (NullPointerException) b == null;
       @   signals_only IOException, NullPointerException; */
-    public void write(/*@ non_null*/ byte[] b) throws IOException;
+    public void write(byte[] b) throws IOException;
 
 // FIXME - record what was written
     /*-RAC@ public behavior
@@ -115,5 +116,5 @@ public abstract class OutputStream extends Object implements Closeable, Flushabl
       @   requires !isOpen;
       @   assignable \nothing;
       @*/
-    public void write(/*@ non_null*/ byte[] b, int off, int len) throws IOException;
+    public void write(byte[] b, int off, int len) throws IOException;
 }

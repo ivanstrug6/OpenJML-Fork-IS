@@ -39,9 +39,9 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     
     /*-RAC@
         public normal_behavior
-          requires radix > 0;
+          requires Character.MIN_RADIX <= radix <= Character.MAX_RADIX;
           requires Number.parseable(val,radix);
-        public static model pure function \bigint parse(String val, int radix) {
+        public static model spec_pure \bigint parse(String val, int radix) {
         // !FIXME! - should put in a non-circular computation for RAC
             return new BigInteger(val,radix).value;
         }
@@ -53,9 +53,9 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
         //@   ensures (\result < 0) <==> (val.length >= 1 && val[0] < 0);
         //@   ensures (val.length >= 1 && val[0] >= 0) ==> (* \result.value == (\sum int i; 0<=i && i<val.length; -- sum over powers of 16 *); // FIXME 
         //@ pure helper
-        public static model \bigint convert(non_null byte[] val) {
+        public static model \bigint convert(byte non_null [] val) {
         // !FIXME! - should put in a non-circular computation for RAC
-            return new BigInteger(val);
+            return \bigint.of(new BigInteger(val));
         }
     @*/
 
@@ -88,7 +88,7 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //@    signals (NullPointerException) magnitude == null;
     //@    signals_only NullPointerException, NumberFormatException;
     //@ pure
-    public BigInteger(int signum, /*@ nullable @*/ byte[] magnitude);
+    public BigInteger(int signum, byte /*@ nullable @*/ [] magnitude);
 
     /*-RAC@  public normal_behavior
      @     requires val != null && Number.parseable(val,radix);
@@ -187,7 +187,7 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   requires val != null;
     //-RAC@   requires val.value != 0;
     //-RAC@   ensures \result != null;
-    //-RAC@   ensures equals(\result.multiply(val).add(remainder(val)));
+    //-RAC@   ensures \result.value == \result.value * val.value + this.value % val.value;
     //-RAC@   ensures \result.value == this.value / val.value;
     //-RAC@ also public exceptional_behavior
     //-RAC@   requires val != null;
@@ -199,8 +199,8 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   requires val != null;
     //-RAC@   requires val.value != 0;
     //-RAC@   ensures \result != null;
-    //-RAC@ ensures \result[0].value == divide(val).value;
-    //-RAC@ ensures \result[1].value == remainder(val).value;
+    //-RAC@   ensures \result[0].value == this.value/val.value;
+    //-RAC@   ensures \result[1].value == this.value % val.value;
     //-RAC@ also public exceptional_behavior
     //-RAC@   requires val != null;
     //-RAC@   requires val.value == 0;
@@ -230,7 +230,6 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //@   ensures \result != null;
     //@   ensures signum() >= 0 ==> \result == this;
     //-RAC@ ensures signum() <  0 ==> \result.value == -this.value;
-    //+RAC@ ensures signum() <  0 ==> \result == this.negate();
     public BigInteger abs();
 
     //@ public normal_behavior
@@ -347,7 +346,7 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   ensures value == 0 ==> \result == 0;
     //-RAC@   ensures value != 0 ==> \result > 0;
     //+RAC@   ensures \result >= 0;
-    //@ pure function
+    //@ spec_pure
     public int bitLength();
 
     // static int bitLen(int w);   package-level method removed from specification (dmz, 2009-11-17)
@@ -358,7 +357,7 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   ensures value == 0 ==> \result == 0;
     //-RAC@   ensures value != 0 ==> \result > 0;
     //+RAC@   ensures \result >= 0;
-    //@ pure function
+    //@ spec_pure
     public int bitCount();
 
     // static int bitCnt(int val);   package-level method removed from specification (dmz, 2009-11-17)
@@ -370,12 +369,12 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //@    public normal_behavior
     //@       requires certainty > 0;
     //-RAC@   ensures \result == isProbablePrime(value,certainty);
-    //@    pure 
+    //@ spec_pure 
     public boolean isProbablePrime(int certainty);
 
     //@ public normal_behavior
     //@   requires certainty > 0;
-    //@ pure function
+    //@ no_state
     //@ model public static boolean isProbablePrime(\bigint v, int certainty);
 
     // Comparison Operations
@@ -385,14 +384,16 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   ensures this.value < val.value <==> \result == -1;
     //-RAC@   ensures this.value == val.value <==> \result == 0;
     //-RAC@   ensures this.value > val.value <==> \result == 1;
-    //@ pure
+    //@ spec_pure
     public int compareTo(BigInteger val);
 
     //@ also public normal_behavior
     //@   requires x != null && x instanceof BigInteger;
-    //@   assignable \nothing;
     //-RAC@   ensures \result == (this.value == ((BigInteger)x).value);
-    public /*@ pure helper @*/ boolean equals(Object x);
+    //@ also
+    //@   requires !(x != null && x instanceof BigInteger);
+    //@   ensures \result == false;
+    public /*@ spec_pure helper @*/ boolean equals(/*@ nullable */ Object x);
 
     //@ public normal_behavior
     //@   requires val != null;
@@ -428,14 +429,15 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     public String toString();
     
     //@ public normal_behavior
-    //@ ensures n <= 0 ==> \result == 1;
-    //@ ensures n > 0 ==> \result == 256 * pow256(n-1);
-    //@ model public static function \bigint pow256(\bigint n);
+    //@   ensures \result == (n <= 0 ? 1 : 256 * pow256(n-1));
+    //@ model public static no_state helper \bigint pow256(\bigint n);
     
-    //@ axiom (\forall \bigint m, n; m > n && n >= 0; pow256(m) > pow256(n));
+    // @ axiom (\forall \bigint n; n >= 0 ==> pow256(n+1) > pow256(n)); // FIXME - this axiom causes infeasibility (cf. gitbug578)
+    // @ axiom (\forall \bigint m, n; m > n && n >= 0; pow256(m) > pow256(n)); // FIXME - this axiom causes infeasibility (cf. gitbug578)
 
     //@     public normal_behavior
     //@       requires this.signum() > 0;
+    //@       ensures \result != null;
     //@       ensures \result.length > 0;
     //-RAC@   ensures convert(\result) == this.value;
     //-RAC@   ensures (pow256(\result.length-1)/2 <= this.value && this.value < pow256(\result.length-1)) ==> \result[0] == 0;
@@ -443,38 +445,40 @@ public /*@ pure @*/ class BigInteger extends Number implements Comparable<BigInt
     //-RAC@   ensures (pow256(\result.length-1)/2 <= this.value && this.value < pow256(\result.length)/2);
     //@     also public normal_behavior
     //@       requires this.signum() < 0;
+    //@       ensures \result != null;
     //@       ensures \result.length > 0;
     //@       ensures \result[0] < 0;
     //-RAC@   ensures convert(\result) == this.value;
     //-RAC@   ensures pow256(\result.length-1)/2 < -this.value && -this.value <= pow256(\result.length)/2;
     //@     also public normal_behavior
     //@       requires this.signum() == 0;
+    //@       ensures \result != null;
     //@       ensures \result.length == 1;
     //@       ensures \result[0] == 0;
     //-RAC@   ensures convert(\result) == this.value;
-    //@ pure helper non_null
+    //@ pure helper
     public byte[] toByteArray();
 
     //-RAC@ also
     //-RAC@ requires Integer.MIN_VALUE <= this.value <= Integer.MAX_VALUE;
     //-RAC@ ensures \result == this.value;
-    //@ pure helper
+    //@ spec_pure helper
     public int intValue();
 
     //-RAC@ also
     //-RAC@ requires Long.MIN_VALUE <= this.value <= Long.MAX_VALUE;
     //-RAC@ ensures \result == this.value;
-    //@ pure helper
+    //@ spec_pure helper
     public long longValue();
 
     //@ also
     //@ ensures_redundantly this.equals(\old(this));
-    //@ pure helper
+    //@ spec_pure helper
     public float floatValue();
 
     //@ also
     //@ ensures_redundantly this.equals(\old(this));
-    //@ pure helper
+    //@ spec_pure helper
     public double doubleValue();
 
 }

@@ -34,7 +34,7 @@ import org.jmlspecs.annotation.*;
 
 public interface JMLIterator<E> {
 
-    //@ public model instance JMLDataGroup position;
+    //@ model public instance \datagroup position;
     
     /** Return a clone of this iterator.
      * This declaration makes the method public.
@@ -50,7 +50,7 @@ public interface JMLIterator<E> {
     /** Returns true if there is a next element */
     //@ public normal_behavior
     //@   ensures \not_assigned(position);
-    @Query
+    @SpecPure // FIXME - used to be @Query
     boolean hasNext();
     
     //@ requires hasNext();

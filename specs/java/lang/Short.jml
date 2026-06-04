@@ -27,9 +27,9 @@ package java.lang;
  */
 //+OPENJML@ immutable
 public /*@ pure @*/ final
-    class Short extends Number implements Comparable {
+    class Short extends Number implements Comparable<Short> {
 
-    //@ public model short theShort;
+    //@ public model final short theShort;
     //+RAC@ represents theShort = shortValue();
 
     /*@
@@ -41,32 +41,32 @@ public /*@ pure @*/ final
       @       (s.charAt(0) == '-' || Character.digit(s.charAt(0), r) != -1) &&
       @          (\forall int i; 1 <= i && i < s.length(); 
       @               Character.digit(s.charAt(i), r) != -1));
-      @   model public static pure function boolean parseable( String s, int r ){
-        try { Short ss = Short.valueOf(s,r); return true; }
+      @   model public static spec_pure boolean parseable( String s, int r ){
+        try { short ss = Short.parseShort(s,r); return true; }
         catch (Exception e) { return false; }
           @   }
 
       @    public normal_behavior
       @     {|
       @       requires (nm.charAt(0) == 'O' && nm.charAt(1) == 'x');  // posititve hex
-      @       ensures \result == parseable(nm.substring(2), 16);
+      @       { return parseable(nm.substring(2), 16); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == 'O' && nm.charAt(2) == 'x');  // negative hex
-      @       ensures \result == parseable(nm.substring(3), 16);
+      @       { return parseable(nm.substring(3), 16); }
       @      also
       @       requires (nm.charAt(0) == '#');              // positive hex
-      @       ensures \result == parseable(nm.substring(1), 16);
+      @      { return parseable(nm.substring(1), 16); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == '#');  // negetive hex
-      @       ensures \result == parseable(nm.substring(2), 16);
+      @       { return parseable(nm.substring(2), 16); }
       @      also
       @       requires (nm.charAt(0) == 'O');              //positive octal
-      @       ensures \result == parseable(nm.substring(1), 8);
+      @       { return parseable(nm.substring(1), 8); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == 'O');  // negetive octal
-      @       ensures \result == parseable(nm.substring(2), 8);
+      @       { return parseable(nm.substring(2), 8); }
       @      also
-      @       ensures \result == parseable(nm, 10);  // positive or negetive short, radix 10
+      @       { return parseable(nm, 10); } // positive or negetive short, radix 10
       @     |}
       @   model public static pure boolean decodeable( String nm ) {
         try { decode(nm); return true; }
@@ -75,8 +75,8 @@ public /*@ pure @*/ final
       @ 
       @*/
 
-    public static final short   MIN_VALUE = -32768;
-    public static final short   MAX_VALUE = 32767;
+    public static final short   MIN_VALUE; //  = -32768;
+    public static final short   MAX_VALUE; // = 32767;
     //@ ghost public static final int MAX_UNSIGNED_VALUE = 65535; 
 
     public static final Class<Short>   TYPE;
@@ -84,7 +84,8 @@ public /*@ pure @*/ final
     //@ ensures TYPE == short.class;
     //@ static_initializer
 
-    public static final int   SIZE = 16; // Number of bits in a short representation
+    public static final int   SIZE; // = 16; // Number of bits in a short
+    public static final int   BYTES; // = 2; // Number of bytes in a short
 
     /*@
       @ public normal_behavior
@@ -118,7 +119,7 @@ public /*@ pure @*/ final
       @      requires !parseable(s,10);
       @      signals (NumberFormatException);
       @*/
-        public static /*@ pure @*/ short parseShort(String s)
+        public static /*@ spec_pure @*/ short parseShort(String s)
             throws NumberFormatException ;
 
     /*@ public normal_behavior
@@ -133,12 +134,12 @@ public /*@ pure @*/ final
       @    requires s.equals("-34")  && radix == 10;
       @    ensures \result == -34;
       @*/
-    public static /*@ pure @*/ short parseShort(String s, int radix)
+    public static /*@ spec_pure @*/ short parseShort(String s, int radix)
             throws NumberFormatException ;
 
     /*@ public normal_behavior
       @   requires parseable(s, radix);
-      @   ensures \fresh(\result) && \result.shortValue() == parseShort(s, radix);
+      @   ensures \result.shortValue() == parseShort(s, radix);
       @ also 
       @ public exceptional_behavior
       @   requires !parseable(s, radix);
@@ -150,7 +151,7 @@ public /*@ pure @*/ final
 
     /*@ public normal_behavior
       @   requires parseable(s,10);
-      @   ensures \fresh(\result) && \result.shortValue() == parseShort(s);
+      @   ensures \result.shortValue() == parseShort(s);
       @ also
       @ public exceptional_behavior
       @   requires !parseable(s,10);
@@ -171,7 +172,7 @@ public /*@ pure @*/ final
             Short decode(/*@ non_null @*/ String nm)
             throws NumberFormatException ;
 
-    /*@ public normal_behavior
+    /*-RAC@ public normal_behavior
       @   ensures theShort == value;
       @*/
     public Short(short value) ;
@@ -190,43 +191,47 @@ public /*@ pure @*/ final
           @   public normal_behavior
       @     ensures \result == (byte) theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public byte byteValue() ;
 
     /*@ also
       @   public normal_behavior
-      @     ensures \result == theShort;
+      @     //-RAC@ ensures \result == theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public short shortValue() ;
 
     /*@ also
       @   public normal_behavior
       @     ensures \result == (int) theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public int intValue() ;
 
     /*@ also
       @   public normal_behavior
       @     ensures \result == (long) theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public long longValue() ;
 
     /*@ also
       @   public normal_behavior
       @     ensures \result == (float) theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public float floatValue() ;
 
     /*@ also
       @   public normal_behavior
       @     ensures \result == (double) theShort;
       @*/
-    //@ pure helper
+    //@ spec_pure helper
     public double doubleValue() ;
+    
+    //@ public normal_behavior
+    //-RAC@  ensures \result.theShort == s;
+    public static Short valueOf(short s);
 
         // specification inherited from Object
     public /*@ non_null @*/ String toString();
@@ -248,7 +253,7 @@ public /*@ pure @*/ final
       @*/
     public boolean equals(Object obj) ;
 
-    /*@ public normal_behavior
+    /*@ also public normal_behavior
       @ {|
       @   requires theShort == anotherShort.shortValue();
       @   ensures \result == 0;
@@ -262,44 +267,46 @@ public /*@ pure @*/ final
       @*/
     public int compareTo(/*@ non_null @*/ Short anotherShort) ;
 
-//    /*@ also
-//      @     public normal_behavior
-//      @       requires o != null && (o instanceof Short);
-//      @       ensures \result == compareTo((Short) o);
-//      @   also
-//      @     public exceptional_behavior
-//      @       requires o == null && !(o instanceof Short);
-//      @       signals(ClassCastException);
-//      @*/
-//    public int compareTo(Object o) throws ClassCastException;
+    /*@ 
+      @     public normal_behavior
+      @       requires o != null && (o instanceof Short);
+      @       ensures \result == compareTo((Short) o);
+      @   also
+      @     public exceptional_behavior
+      @       requires o == null && !(o instanceof Short);
+      @       signals(ClassCastException);
+      @*/
+    public int compareTo(Object o) throws ClassCastException;
 
     //@ public normal_behavior
     //@   ensures \result == (b0*256 + Byte.toUnsignedInt(b1));
-    //@ model public static pure helper function short asShort(byte b0, byte b1);
+    //@ model public static helper no_state short asShort(byte b0, byte b1);
     
     //@ public normal_behavior
     //@   ensures \result == (i < 0 ? 0x10000 + i : i);
-    //@ pure helper function
+    //@ helper no_state
     public static int toUnsignedInt(short i);
 
     //@ public normal_behavior
     //@   ensures \result == (i < 0 ? 0x10000 + i : i);
-    //@ pure helper
+    //@ spec_pure helper
     //@ model public static int toUnsignedIntNF(short i);
 
     //@ public normal_behavior
     //@   ensures \result == (i < 0 ? 0x10000 + i : i);
-    //@ pure helper function
+    //@ helper no_state
     public static long toUnsignedLong(short i);
 
     /*@
     ensures 0 <= toUnsignedInt(i);
     ensures toUnsignedInt(i) <= 65535;
+    pure
     model public static void lemma1(short i) {}
     */
 
     /*@
     ensures (i & 0xffff) == toUnsignedInt(i);
+    pure
     model public static void lemma2(short i) {}
     */
 

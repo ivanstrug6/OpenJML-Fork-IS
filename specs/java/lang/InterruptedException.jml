@@ -2,17 +2,16 @@
 
 package java.lang;
 
+//@ nullable_by_default
 public class InterruptedException extends java.lang.Exception {
 
-    /*@ public normal_behavior
-      @   ensures standardThrowable();
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable();
     //@ pure
     public InterruptedException();
 
-    /*@ public normal_behavior
-      @   ensures standardThrowable(message);
-      @*/
+    //@ public normal_behavior
+    //-RAC@   ensures standardThrowable(s);
     //@ pure
-    public InterruptedException(java.lang.String message);
+    public InterruptedException(String s);
 }

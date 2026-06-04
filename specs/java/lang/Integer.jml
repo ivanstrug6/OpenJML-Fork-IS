@@ -26,52 +26,51 @@ package java.lang;
  * @author Gary T. Leavens
  * @author David R. Cok
  */
-//@ immutable
+//+OPENJML@ immutable
 public  /*@ pure @*/ final
-    class Integer extends Number implements Comparable {
+    class Integer extends Number implements Comparable<Integer>, java.lang.constant.Constable, java.lang.constant.ConstantDesc {
 
-    //@ public model int theInteger;  in objectState, uniqueHash;
+    //@ public model final int theInteger;  in uniqueHash, objectState;
     //+RAC@ represents theInteger = intValue();
     
-    //@ public represents uniqueHash = theInteger;
+    //-RAC@ public represents uniqueHash = theInteger;
 
   /*-RAC@
     @   public normal_behavior
     @     ensures \result <==> Number.parseable( s, r, Integer.SIZE);
-    @   model public helper static pure boolean parseable( String s, int r );
+    @   model public helper static spec_pure boolean parseable( String s, int r );
     @*/
 
   /*-RAC@
     @   public normal_behavior
     @     ensures \result <==> Number.decodable(nm, Integer.SIZE);
-    @   model public helper static pure boolean decodable( String nm );
+    @   model public helper static spec_pure boolean decodable( String nm );
     @*/
           
     // FIXME: problem with undefined preconditions when using this axiom: -RAC-ESC@ axiom (\forall int r; (\forall String s, ss; s.equals(ss) && parseable(s,r) && parseable(ss,r) ==> parseInt(s,r) == parseInt(ss,r)));
 
-    public static final int   MIN_VALUE = 0x80000000;
+    public static final int   MIN_VALUE;// = 0x80000000;
 
-    public static final int   MAX_VALUE = 0x7FFFFFFF;
+    public static final int   MAX_VALUE;// = 0x7FFFFFFF;
 
     public static final Class<Integer> TYPE = int.class;  // 1.5 DIFFERENCE
     
-    //@ model public static final long MAX_UNSIGNED_INT = 0xffff_ffffL;
+    //@ model public static final long MAX_UNSIGNED_INT;
+    //@ static represents MAX_UNSIGNED_INT = 0xffff_ffffL;
     
     //@ ensures TYPE == int.class;
     //@ static_initializer
 
-    public static final int   SIZE = 32; // Number of bits in an int representation
-    public static final int   BYTES = 4; // Number of bytes in an int representation
+    public static final int   SIZE;// = 32; // Number of bits in an int representation
+    public static final int   BYTES;// = 4; // Number of bytes in an int representation
     
     /*-RAC@ public normal_behavior
-      @   requires (Character.MIN_RADIX <= radix
-      @             && radix <= Character.MAX_RADIX);
+      @   requires (Character.MIN_RADIX <= radix <= Character.MAX_RADIX);
       @   ensures \result != null;
       @   ensures parseable(\result,radix);
       @   ensures i == parseInt(\result, radix);
       @ also public normal_behavior
-      @   requires !(Character.MIN_RADIX <= radix
-      @             && radix <= Character.MAX_RADIX) 
+      @   requires !(Character.MIN_RADIX <= radix <= Character.MAX_RADIX) 
       @            || radix == 10;
       @   ensures \result != null;
       @   ensures parseable(\result,10);
@@ -79,11 +78,10 @@ public  /*@ pure @*/ final
       @   ensures i == 0 ==> \result.length() == 1;
       @   ensures i >  0 ==> \result.length() >= 1;
       @   ensures i <  0 ==> \result.length() >= 2;
-      @   ensures i == 0 ==> \result.equals("0");
+      @   ensures i == 0 ==> String.equals(\result,"0");
       @   ensures radix >= 10 ==> \result.length() <= 11;
       @*/
-    public static /*@ pure helper non_null @*/ String toString(int i,
-                                                                  int radix);
+    public static /*@ pure non_null @*/ String toString(int i, int radix);
 
     /*-RAC@ public normal_behavior
       @   ensures \result != null;
@@ -91,7 +89,7 @@ public  /*@ pure @*/ final
       @ also public normal_behavior
       @   requires i >= 0;
       @   ensures parseable(\result,16);
-      @   ensures \result.equals(toString(i, 16));
+      @   ensures \result.chars == \string.of(i, 16);
       @   ensures parseInt(\result,16) == i;
       @ also public normal_behavior
           // toHexString produces a hex string of the unsigned argument
@@ -99,7 +97,7 @@ public  /*@ pure @*/ final
       @   old long pos_i = (1L<<32) + i;
       @   requires i < 0;
       @   ensures Long.parseable(\result,16);
-      @   ensures \result.equals(Long.toString(pos_i, 16));
+      @   // ensures \result.equals(Long.toString(pos_i, 16)); // FIXME -- toString is not spec-pure
       @   ensures (int)Long.parseLong(\result,16) == i;
       @*/
     public static /*@ pure @*/ /*@ non_null @*/ String toHexString(int i);
@@ -110,7 +108,7 @@ public  /*@ pure @*/ final
       @ also public normal_behavior
       @   requires i >= 0;
       @   ensures parseable(\result,8);
-      @   ensures \result.equals(toString(i, 8));
+      @   ensures \result.chars == \string.of(i, 8);
       @   ensures parseInt(\result,8) == i;
       @ also public normal_behavior
           // toOctalString produces a octal string of the unsigned argument
@@ -118,7 +116,7 @@ public  /*@ pure @*/ final
       @   old long pos_i = (1L<<32) + i;
       @   requires i < 0;
       @   ensures Long.parseable(\result,8);
-      @   ensures \result.equals(Long.toString(pos_i, 8));
+      @   //ensures \result.equals(Long.toString(pos_i, 8)); // FIXME -- toString is not spec-pure
       @   ensures (int)Long.parseLong(\result,8) == i;
       @*/
     public static /*@ pure @*/ /*@ non_null @*/ String toOctalString(int i);
@@ -129,7 +127,7 @@ public  /*@ pure @*/ final
       @ also public normal_behavior
       @   requires i >= 0;
       @   ensures parseable(\result,2);
-      @   ensures \result.equals(toString(i, 2));
+      @   ensures \result.chars == \string.of(i, 2);
       @   ensures parseInt(\result,2) == i;
       @ also public normal_behavior
           // toBinaryString produces a binary string of the unsigned argument
@@ -137,22 +135,20 @@ public  /*@ pure @*/ final
       @   old long pos_i = (1L<<32) + i;
       @   requires i < 0;
       @   ensures Long.parseable(\result,2);
-      @   ensures \result.equals(Long.toString(pos_i, 2));
+      @   // ensures \result.equals(Long.toString(pos_i, 2)); // FIXME -- toString is not spec-pure
       @   ensures (int)Long.parseLong(\result,2) == i;
       @*/
     public static /*@ pure @*/ /*@ non_null @*/ String toBinaryString(int i);
             
 
     /*-RAC@ public normal_behavior
-      @   ensures \result != null;
-      @   ensures \invariant_for(\result);
-      @   ensures parseable(\result, 10);
-      @   ensures \result.equals(toString(i, 10));
-      @   ensures i == parseInt(\result, 10);
-      @   ensures i == 0 ==> \result.length() == 1;
-      @   ensures i >  0 ==> \result.length() >= 1;
-      @   ensures i <  0 ==> \result.length() >= 2;
-      @   ensures i == 0 ==> \result.equals("0");
+      @   ensures \result.chars == \string.of(i, 10);
+      @   //ensures parseable(\result, 10);
+      @   //ensures i == parseInt(\result, 10);
+      @   //ensures i == 0 ==> \result.length() == 1;
+      @   //ensures i >  0 ==> \result.length() >= 1;
+      @   //ensures i <  0 ==> \result.length() >= 2;
+      @   //ensures i == 0 ==> \result.equals("0");
       @*/
     public static /*@ pure @*/ /*@ non_null @*/ String toString(int i);
 
@@ -166,7 +162,7 @@ public  /*@ pure @*/ final
       @   requires !parseable(s, radix);
       @   signals_only NumberFormatException;
       @*/
-    public static /*@ pure @*/ int parseInt(String s, int radix)
+    public static /*@ spec_pure @*/ int parseInt(String s, int radix)
         throws NumberFormatException;
                 
     /*-RAC@    public normal_behavior
@@ -177,12 +173,13 @@ public  /*@ pure @*/ final
       @      requires !parseable(s, 10);
       @      signals_only NumberFormatException;
       @*/
-    public static /*@ pure @*/ int parseInt(String s)
+    public static /*@ spec_pure @*/ int parseInt(String s)
         throws NumberFormatException;
             
     /*-RAC@ public normal_behavior
       @   requires parseable(s, radix);
       @   ensures \result.intValue() == parseInt(s,radix);
+      @   ensures \typeof(\result) == \type(Integer);
       @ also
       @ public exceptional_behavior
       @   requires !parseable(s, radix);
@@ -195,6 +192,7 @@ public  /*@ pure @*/ final
     /*-RAC@ public normal_behavior
     @   requires parseable(s, 10);
     @   ensures \result.intValue() == parseInt(s,10);
+    @   ensures \typeof(\result) == \type(Integer);
     @ also
     @ public exceptional_behavior
     @   requires !parseable(s, 10);
@@ -205,6 +203,7 @@ public  /*@ pure @*/ final
 
     /*@ public normal_behavior
      @   ensures \result.intValue() == i;
+     @   ensures \typeof(\result) == \type(Integer);
      @*/
     public static /*@ pure @*/ /*@ non_null @*/ Integer valueOf(int i);
 
@@ -227,58 +226,64 @@ public  /*@ pure @*/ final
  
     /*-RAC@ also 
       @   public normal_behavior
+      @     reads theInteger;
       @     ensures \result == \java_math((byte) theInteger);
       @*/
-    public /*@ pure helper @*/ byte byteValue();
+    public /*@ spec_pure helper @*/ byte byteValue();
     
     /*-RAC@ also
       @   public normal_behavior
+      @     reads theInteger;
       @     ensures \result == \java_math((short) theInteger);
       @*/
-    public /*@ pure helper @*/ short shortValue();
+    public /*@ spec_pure helper @*/ short shortValue();
 
     /*-RAC@ also
       @   public normal_behavior
+      @     reads theInteger;
       @     ensures \result == theInteger;
       @*/
-    public /*@ pure helper @*/ int intValue();
+    public /*@ spec_pure helper @*/ int intValue();
     
     /*-RAC@ also
       @   public normal_behavior
+      @     reads theInteger;
       @     ensures \result == (long) theInteger;
       @*/
-    public /*@ pure helper @*/ long longValue();
+    public /*@ spec_pure helper @*/ long longValue();
     
     /*-RAC@ also
       @   public normal_behavior
-      @      ensures \result == (float) theInteger;
+      @     reads theInteger;
+      @     ensures \result == (float) theInteger;
       @*/
-    public /*@ pure helper @*/ float floatValue();
+    public /*@ spec_pure helper @*/ float floatValue();
     
     /*-RAC@ also
       @   public normal_behavior
+      @     reads theInteger;
       @     ensures \result == (double) theInteger;
       @*/
-    public /*@ pure helper @*/ double doubleValue();
+    public /*@ spec_pure helper @*/ double doubleValue();
     
     // specification inherited from Object
     //@ also public normal_behavior
     //-RAC@   ensures parseable(\result, 10);
     //@   ensures Integer.parseInt(\result,10) == intValue();
-    //@   ensures \result.equals(toString(intValue()));
-    //@   ensures \invariant_for(\result);
+    //-RAC@   ensures \result.chars == \string.of(intValue(), 10);
     public /*@ non_null @*/ String toString();
             
     /*@ also
       @   public normal_behavior
+      @     //-RAC@ reads theInteger;
       @     ensures \result == intValue();
       @*/
     @Override
     public int hashCode();
    
     //@ public normal_behavior
-    //@   ensures \result == i;
-    public static int hashCode(int i);
+    //@   ensures \result == value;
+    public static int hashCode(int value);
 
     /*-RAC@ 
       @   public normal_behavior
@@ -288,7 +293,7 @@ public  /*@ pure @*/ final
       @   public normal_behavior
       @     requires i == null || ii == null;
       @     ensures \result <==> (i == ii);
-      @ pure function
+      @ spec_pure
       @ public model static boolean equalsInteger(Integer i, Integer ii);
       @*/
 
@@ -301,17 +306,16 @@ public  /*@ pure @*/ final
       @     requires obj == null || !(obj instanceof Integer);
       @     ensures !\result;
       @*/
-    public boolean equals(Object obj);
+    public boolean equals(/*@ nullable*/Object obj);
   
     /*@ public normal_behavior
-      @   ensures (\result == null && getInteger(nm,null) == null) ||
-      @           \result.equals(getInteger(nm, null));
+      @   { return getInteger(nm, null); }
       @*/
     public static /*@ pure @*/
         Integer getInteger(String nm);
 
     /*@ public normal_behavior
-      @   ensures \result.equals(getInteger(nm, new Integer(val)));
+      @   { return getInteger(nm, Integer.valueOf(val)); }
       @*/
     public static /*@ pure @*/ 
         Integer getInteger(String nm, int val);
@@ -320,7 +324,7 @@ public  /*@ pure @*/ final
       @   requires nm != null && !nm.equals("") 
       @         && System.getProperty(nm) != null
       @         && decodable(System.getProperty(nm));
-      @   ensures \result.equals(decode(System.getProperty(nm)));
+      @   { return decode(System.getProperty(nm)); }
       @ also
       @ public normal_behavior
       @   requires nm == null || nm.equals("") 
@@ -345,7 +349,7 @@ public  /*@ pure @*/ final
         Integer decode(/*@ non_null @*/ String nm)
         throws NumberFormatException;
 
-    /*-RAC@ public normal_behavior
+    /*-RAC@ also public normal_behavior
       @ requires anotherInteger != null;
       @ {|
       @   requires theInteger == anotherInteger.intValue();
@@ -363,55 +367,55 @@ public  /*@ pure @*/ final
       @*/
     public int compareTo(Integer anotherInteger);
             
-//    /*@ also
-//      @   public normal_behavior
-//      @     requires o != null && (o instanceof Integer);
-//      @     ensures \result == compareTo((Integer) o);
-//      @ also
-//      @   public exceptional_behavior
-//      @     requires o != null && !(o instanceof Integer);
-//      @     signals_only ClassCastException;
-//      @ also public exceptional_behavior
-//      @   requires o == null;
-//      @   signals_only NullPointerException;
-//      @*/
-//    public int compareTo(Object o);
+    /*@ 
+      @   public normal_behavior
+      @     requires o != null && (o instanceof Integer);
+      @     ensures \result == compareTo((Integer) o);
+      @ also
+      @   public exceptional_behavior
+      @     requires o != null && !(o instanceof Integer);
+      @     signals_only ClassCastException;
+      @ also public exceptional_behavior
+      @   requires o == null;
+      @   signals_only NullPointerException;
+      @*/
+    public int compareTo(Object o);
     
     /*@ public normal_behavior
       @     // We enumerate some cases that we need to avoid using bit arithmetic
-      @   ensures (\result == 0) <==> (k == 0);
-      @   ensures (\result == 1) <==> (k == 1 || k == 2 || k == 4 || k == 8 
-      @                             || k == 16 || k == 32 || k == 64 || k == 128 
-      @                             || k == 256 || k == 512 || k == 1024 || k == 0x800 
-      @                             || k == 0x1000 || k == 0x2000 || k == 0x4000 || k == 0x8000 
-      @                             || k == 0x1_0000 || k == 0x2_0000 || k == 0x4_0000 || k == 0x8_0000 
-      @                             || k == 0x10_0000 || k == 0x20_0000 || k == 0x40_0000 || k == 0x80_0000 
-      @                             || k == 0x100_0000 || k == 0x200_0000 || k == 0x400_0000 || k == 0x800_0000 
-      @                             || k == 0x1000_0000 || k == 0x2000_0000 || k == 0x4000_0000 || k == 0x8000_0000 
+      @   ensures (\result == 0) <==> (i == 0);
+      @   ensures (\result == 1) <==> (i == 1 || i == 2 || i == 4 || i == 8 
+      @                             || i == 16 || i == 32 || i == 64 || i == 128 
+      @                             || i == 256 || i == 512 || i == 1024 || i == 0x800 
+      @                             || i == 0x1000 || i == 0x2000 || i == 0x4000 || i == 0x8000 
+      @                             || i == 0x1_0000 || i == 0x2_0000 || i == 0x4_0000 || i == 0x8_0000 
+      @                             || i == 0x10_0000 || i == 0x20_0000 || i == 0x40_0000 || i == 0x80_0000 
+      @                             || i == 0x100_0000 || i == 0x200_0000 || i == 0x400_0000 || i == 0x800_0000 
+      @                             || i == 0x1000_0000 || i == 0x2000_0000 || i == 0x4000_0000 || i == 0x8000_0000 
       @                             );
       @ //   ensures \result == (
-      @ //         (k&1) + ((k>>1)&1) + ((k>>2)&1) + ((k>>3)&1) +
-      @ //         ((k>>4)&1) + ((k>>5)&1) + ((k>>6)&1) + ((k>>7)&1) +
-      @ //         ((k>>8)&1) + ((k>>9)&1) + ((k>>10)&1) + ((k>>11)&1) +
-      @ //         ((k>>12)&1) + ((k>>13)&1) + ((k>>14)&1) + ((k>>15)&1) +
-      @ //         ((k>>16)&1) + ((k>>17)&1) + ((k>>18)&1) + ((k>>19)&1) +
-      @ //         ((k>>20)&1) + ((k>>21)&1) + ((k>>22)&1) + ((k>>23)&1) +
-      @ //         ((k>>24)&1) + ((k>>25)&1) + ((k>>26)&1) + ((k>>27)&1) +
-      @ //         ((k>>28)&1) + ((k>>29)&1) + ((k>>30)&1) + ((k>>31)&1) );
+      @ //         (i&1) + ((i>>1)&1) + ((i>>2)&1) + ((i>>3)&1) +
+      @ //         ((i>>4)&1) + ((i>>5)&1) + ((i>>6)&1) + ((i>>7)&1) +
+      @ //         ((i>>8)&1) + ((i>>9)&1) + ((i>>10)&1) + ((i>>11)&1) +
+      @ //         ((i>>12)&1) + ((i>>13)&1) + ((i>>14)&1) + ((i>>15)&1) +
+      @ //         ((i>>16)&1) + ((i>>17)&1) + ((i>>18)&1) + ((i>>19)&1) +
+      @ //         ((i>>20)&1) + ((i>>21)&1) + ((i>>22)&1) + ((i>>23)&1) +
+      @ //         ((i>>24)&1) + ((i>>25)&1) + ((i>>26)&1) + ((i>>27)&1) +
+      @ //         ((i>>28)&1) + ((i>>29)&1) + ((i>>30)&1) + ((i>>31)&1) );
       @*/ // OPENJML TODO - one could also add up table lookups on 4-bit quantities
           // OPENJML TODO - perhaps should implement using different specs when in 
           // OPENJML TODO - bitvector mode vs. not
-    //@ pure function
-    public static int bitCount(int k);
+    //@ spec_pure
+    public static int bitCount(int i);
 
     //@ public normal_behavior
     //@   ensures \result == (b0*(0x100_0000) + Byte.toUnsignedInt(b1)*(0x1_0000) + Byte.toUnsignedInt(b2)*(0x100) + Byte.toUnsignedInt(b3));
-    //@ model public static pure helper function int asInt(byte b0, byte b1, byte b2, byte b3);
+    //@ model public static helper no_state int asInt(byte b0, byte b1, byte b2, byte b3);
 
     //@ public normal_behavior // Avoids bit arithmetic
-    //@   ensures \result == \bigint_math(i < 0 ? ((long)i - Integer.MIN_VALUE - Integer.MIN_VALUE) : i) && 0 <= \result && \result <= MAX_UNSIGNED_INT;
-    //@ pure helper function
-    public static long toUnsignedLong(int i);
+    //@   ensures \result == \bigint_math(x < 0 ? ((long)x - Integer.MIN_VALUE - Integer.MIN_VALUE) : x) && (0 <= \result <= MAX_UNSIGNED_INT);
+    //@ spec_pure helper
+    public static long toUnsignedLong(int x);
     
     //@ public normal_behavior
     //@   ensures (0xFFFF_FFFFL & i) == Integer.toUnsignedLong(i);
@@ -419,16 +423,16 @@ public  /*@ pure @*/ final
     
     
     //@ public normal_behavior
-    //@   ensures \result == \java_math(i+j);
-    public static int sum(int i, int j);
+    //@   ensures \result == \java_math(a+b);
+    public static int sum(int a, int b);
     
     //@ public normal_behavior
-    //@   ensures \result == (i>j?i:j);
-    public static int max(int i, int j);
+    //@   ensures \result == (a>b?a:b);
+    public static int max(int a, int b);
     
     //@ public normal_behavior
-    //@   ensures \result == (i<j?i:j);
-    public static int min(int i, int j);
+    //@   ensures \result == (a<b?a:b);
+    public static int min(int a, int b);
     
     //@ public normal_behavior
     //@   ensures \result == (i>0? 1: i == 0? 0: -1);

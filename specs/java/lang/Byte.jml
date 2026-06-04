@@ -26,73 +26,65 @@ package java.lang;
  * @author Gary T. Leavens
  */
 //+OPENJML@ immutable
-public /*@ pure @*/ final class Byte extends Number implements Comparable
+public /*@ pure @*/ final class Byte extends Number implements Comparable<Byte>
 {
 
-    //@ public model byte theByte;
+    //@ public model final byte theByte;
     //+RAC@ represents theByte = byteValue();
 
-    /*@ 
+    /*-RAC@   
       @     public normal_behavior
       @       assignable \nothing;
-      @      ensures \result == parseable( s, 10 );
-      @   model public static pure boolean parseable( String s ) {
-      try { Byte ss = Byte.valueOf(s); return true; }   
-      catch (Exception e) { return false; }
-      }     
+      @      ensures \result == parseable( s, 0, 10 );
+      @   model public static strictly_pure boolean parseable( String s ); 
 
       @    public normal_behavior
       @      requires Character.MIN_RADIX <= r && r <= Character.MAX_RADIX;
       @       assignable \nothing;
       @      ensures \result <==>
-      @          s != null && !s.equals("") &&
-      @          (\forall int i; 0 <= i && i < s.length(); 
+      @          s != null && !s.chars.isEmpty() &&
+      @          (\forall int i; index <= i && i < s.length(); 
       @               Character.digit(s.charAt(i), r) != -1);
       @     also
       @    public normal_behavior
       @       requires Character.MIN_RADIX <= r && r <= Character.MAX_RADIX;
       @       assignable \nothing;
       @       ensures \result <==>
-      @               s != null && !s.equals("") &&
-      @               (\forall int i; 1 <= i && i < s.length() && s.charAt(0) == '-';
+      @               s != null && !s.chars.isEmpty() && s.charAt(index) == '-' &&
+      @               (\forall int i; index < i && i < s.length();
       @                        Character.digit(s.charAt(i), r) != -1);
-      @   model public static pure boolean parseable( String s, int r ) {
-      try { Byte ss = Byte.valueOf(s,r); return true; } 
-      catch (Exception e) { return false; }     
-      @   }
+      @*/
+    //@ model public static strictly_pure boolean parseable( String s, int index, int r );
 
-      @    public normal_behavior
+    /*-RAC@    public normal_behavior
       @     {|
       @       requires (nm.charAt(0) == 'O' && nm.charAt(1) == 'x'); // posititve hex
-      @       ensures \result == parseable(nm.substring(2), 16);
+      @       { return parseable(nm, 2, 16); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == 'O' && nm.charAt(2) == 'x'); // negative hex
-      @       ensures \result == parseable(nm.substring(3), 16);
+      @       { return parseable(nm, 3, 16); }
       @      also
       @       requires (nm.charAt(0) == '#');              // positive hex
-      @       ensures \result == parseable(nm.substring(1), 16);
+      @       { return parseable(nm, 1, 16); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == '#');  // negative hex
-      @       ensures \result == parseable(nm.substring(2), 16);
+      @       { return parseable(nm, 2, 16); }
       @      also
       @       requires (nm.charAt(0) == 'O');              //positive octal
-      @       ensures \result == parseable(nm.substring(1), 8);
+      @       { return parseable(nm, 1, 8); }
       @      also
       @       requires (nm.charAt(0) == '-' && nm.charAt(1) == 'O');  // negative octal
-      @       ensures \result == parseable(nm.substring(2), 8);
+      @       { return parseable(nm, 2, 8); }
       @      also
-      @       ensures \result == parseable(nm);  // positive or negative byte, radix 10
+      @       { return parseable(nm, 0, 10); }  // positive or negative byte, radix 10
       @     |}
-      @   model public static pure boolean decodeable( String nm ) {
-      try { decode(nm); return true; }
-      catch (Exception e) { return false; }
-      }
       @*/
+    //@ model public static spec_pure boolean decodeable( String nm );
 
-    public static final byte MIN_VALUE = -128;
-    public static final byte MAX_VALUE = 127;
-    public static final byte SIZE = 8;
-    public static final byte BYTES = 1;
+    public static final byte MIN_VALUE;// = -128;
+    public static final byte MAX_VALUE;// = 127;
+    public static final int SIZE;// = 8;
+    public static final int BYTES;// = 1;
 
     public static /* non_null */ final Class<Byte> TYPE;
     
@@ -105,11 +97,11 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @   {|
       @    requires b < 0;
       @    ensures \result != null && \result.length() >= 2 &&  \result.charAt(0) == '-' && \result.charAt(1) != '0'
-      @        && parseable(\result,10) && b == parseByte(\result);
+      @        && parseable(\result,0,10) && b == parseByte(\result);
       @   also
       @    requires b > 0;
       @    ensures \result != null && \result.length() >= 1 && \result.charAt(0) != '0'
-      @        && parseable(\result,10) && b == parseByte(\result);
+      @        && parseable(\result,0,10) && b == parseByte(\result);
       @   also
       @    requires b == 0;
       @    ensures \result != null && \result.length() == 1 && \result.charAt(0) == '0';
@@ -125,25 +117,25 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
     public static /*@ pure @*/ /*@ non_null @*/ String toString(byte b);
 
     /*@    public normal_behavior
-      @      requires parseable(s);
+      @      requires parseable(s, 0, 10);
       @      assignable \nothing;
       @      ensures \result == parseByte(s, 10);
       @ also
       @    public exceptional_behavior
-      @      requires !parseable(s);
+      @      requires !parseable(s, 0, 10);
       @      assignable \nothing;
       @      signals (NumberFormatException);
       @*/
-    public static /*@ pure @*/ byte parseByte(String s)
+    public static /*@ strictly_pure @*/ byte parseByte(String s)
         throws NumberFormatException;
 
     /*@ public normal_behavior
-      @   requires parseable(s, radix);
+      @   requires parseable(s, 0, radix);
       @   assignable \nothing;
       @   ensures (* the byte represented by string s with specified radix *);
       @ also 
       @ public exceptional_behavior
-      @   requires !parseable(s, radix);
+      @   requires !parseable(s, 0, radix);
       @   assignable \nothing;
       @   signals (NumberFormatException);
       @ for_example
@@ -151,17 +143,16 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @    requires s.equals("-34")  && radix == 10;
       @    ensures \result == -34;
       @*/
-    public static /*@ pure @*/ byte parseByte(String s, int radix)
+    public static /*@ strictly_pure @*/ byte parseByte(String s, int radix)
         throws NumberFormatException;
 
     /*@ public normal_behavior
-      @   requires parseable(s, radix);
+      @   requires parseable(s, 0, radix);
       @   assignable \nothing;
-      @   ensures \fresh(\result);
       @   ensures \result.byteValue() == parseByte(s, radix);
       @ also 
       @ public exceptional_behavior
-      @   requires !parseable(s, radix);
+      @   requires !parseable(s, 0, radix);
       @   assignable \nothing;
       @   signals (NumberFormatException);
       @*/
@@ -170,13 +161,12 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
         throws NumberFormatException;
 
     /*@ public normal_behavior
-      @   requires parseable(s);
+      @   requires parseable(s, 0, 10);
       @   assignable \nothing;
-      @   ensures \fresh(\result);
       @   ensures \result.byteValue() == parseByte(s);
       @ also
       @ public exceptional_behavior
-      @   requires !parseable(s);
+      @   requires !parseable(s, 0, 10);
       @   assignable \nothing;
       @   signals (NumberFormatException);
       @*/
@@ -196,17 +186,17 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
     public static /*@ pure @*/ /*@ non_null @*/ Byte decode(String nm)
         throws NumberFormatException;
 
-    /*@ public normal_behavior
+    /*-RAC@ public normal_behavior
       @   ensures theByte == value;
       @*/
     public Byte(byte value);
 
     /*@ public normal_behavior
-      @   requires parseable(s);
+      @   requires parseable(s, 0, 10);
       @   ensures theByte == parseByte(s);
       @ also
       @ public exceptional_behavior
-      @   requires !parseable(s);
+      @   requires !parseable(s, 0, 10);
       @   assignable \nothing;
       @   signals(NumberFormatException);
       @*/
@@ -214,9 +204,9 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
 
     /*@ also
       @   public normal_behavior
-      @     ensures \result == theByte;
+      @     //-RAC@ ensures \result == theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public byte byteValue();
 
     /*@ also
@@ -224,7 +214,7 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures \result == (short) theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public short shortValue();
 
     /*@ also
@@ -232,7 +222,7 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures \result == (int) theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public int intValue();
 
     /*@ also
@@ -240,7 +230,7 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures \result == (long) theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public long longValue();
 
     /*@ also
@@ -248,7 +238,7 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures \result == (float) theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public float floatValue();
 
     /*@ also
@@ -256,8 +246,13 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures \result == (double) theByte;
       @*/
-    //@ pure helper
+    //@ strictly_pure helper
     public double doubleValue();
+    
+    //@ public normal_behavior
+    //-RAC@  ensures \result.theByte == b;
+    //@ pure helper
+    public static Byte valueOf(byte b);
 
     // specification inherited from Object
     public /*@ non_null @*/ String toString();
@@ -267,6 +262,7 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     assignable \nothing;
       @     ensures (* \result is a hash code for this object *);
       @*/
+    //@ spec_pure
     public int hashCode();
 
     /*@ also
@@ -281,9 +277,9 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @     ensures !\result;
       @   |}
       @*/
-    public /*@ pure @*/ boolean equals(Object obj);
+    public /*@ spec_pure @*/ boolean equals(Object obj);
 
-    /*@ public normal_behavior
+    /*@ also public normal_behavior
       @ {|
       @   requires theByte == anotherByte.byteValue();
       @   assignable \nothing;
@@ -297,30 +293,30 @@ public /*@ pure @*/ final class Byte extends Number implements Comparable
       @   assignable \nothing;
       @   ensures \result > 0;
       @ |}
-      @*/
+      @*/ //@ spec_pure
     public int compareTo(/*@ non_null */ Byte anotherByte);
 
     //@ public normal_behavior
-    //@   ensures \result == (b >= 0 ? b: b+256);
-    //@ pure helper function
-    public static int toUnsignedInt(byte b);
+    //@   ensures \result == (x >= 0 ? x: x+256);
+    //@ no_state helper
+    public static int toUnsignedInt(byte x);
     
     //@ public normal_behavior
-    //@   ensures \result == (b >= 0 ? b: b+256);
-    //@ pure helper function
-    public static long toUnsignedLong(byte b);
+    //@   ensures \result == (x >= 0 ? x: x+256);
+    //@ no_state helper
+    public static long toUnsignedLong(byte x);
     
     //@ public normal_behavior
     //@   ensures \result == (hi>=0?hi:hi+256)*256+(lo>=0?lo:lo+256);
-    //@ model public static pure helper function int toUnsignedInt(byte hi, byte lo);
+    //@ model public static helper no_state int toUnsignedInt(byte hi, byte lo);
 
     //@ public normal_behavior
     //@   requires 0 <= i <= 255;
     //@   ensures \result == (byte)(i<128?i:i-256);
-    //@ model public static pure helper function byte unsignedCast(int i);
+    //@ model public static no_state helper byte unsignedCast(int i);
 
     //@ public normal_behavior
     //@   requires 0 <= i <= 255;
     //@   ensures (byte)i == (byte)(i<128?i:i-256);
-    //@ model public static pure helper function void unsignedCastLemma(int i);
+    //@ model public static no_state helper void unsignedCastLemma(int i);
 }

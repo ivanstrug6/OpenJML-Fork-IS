@@ -27,6 +27,7 @@ package java.util;
  * @author Brandon Shilling
  * @author Gary T. Leavens
  */
+//@ non_null_by_default
 public interface Set<E> extends Collection<E> {
 
     /*@ public normal_behavior
@@ -35,25 +36,25 @@ public interface Set<E> extends Collection<E> {
       @*/
 
     // specification inherited
-    /*@ pure */ int size();
+    /*@ strictly_pure helper */ int size();
 
     // specification inherited
     boolean isEmpty();
 
     // specification inherited 
-    /*@ pure */ boolean contains(/*@ nullable */ Object o);
+    /*@ spec_pure */ boolean contains(/*@ nullable */ Object o);
 
     // specification inherited
     Iterator<E> iterator();
 
     // specification inherited
-    /*@non_null*/ Object[] toArray();
+    /*@ non_null*/ Object[] toArray();
+
+//    // specification inherited  // FIXME 
+//    <T> T /*@ non_null*/[] toArray(T /*@ non_null*/ [] a) throws NullPointerException;
 
     // specification inherited
-    /*@non_null*/ <T> T[] toArray(/*@non_null*/ T[] a) throws NullPointerException;
-
-    // specification inherited
-    boolean add(/*@nullable*/ E o);
+    boolean add(/*@ nullable*/ E o);
 
     /*-RAC@ also
        @ public normal_behavior
@@ -67,19 +68,19 @@ public interface Set<E> extends Collection<E> {
     //@   requires !contains(o);
     //@   assignable \nothing; 
     //@   ensures !\result;
-    boolean remove(/*@nullable*/ Object o);
+    boolean remove(/*@ nullable*/ Object o);
 
     // Bulk Operations
 
     // specs are inherited
     //@ pure
-    boolean containsAll(/*@non_null*/ Collection<?> c) throws NullPointerException;
+    boolean containsAll(/*@ non_null*/ Collection<?> c) throws NullPointerException;
 
     // specs are inherited
-    boolean addAll(/*@non_null*/ Collection<? extends E> c) throws NullPointerException;
+    boolean addAll(/*@ non_null*/ Collection<? extends E> c) throws NullPointerException;
 
     // specs are inherited
-    boolean retainAll(/*@non_null*/ Collection<?> c) throws NullPointerException;
+    boolean retainAll(/*@ non_null*/ Collection<?> c) throws NullPointerException;
 
     /*-RAC@ also public normal_behavior
        @   requires c != null;
@@ -90,7 +91,7 @@ public interface Set<E> extends Collection<E> {
        @   ensures size() <= \old(size());
        @   ensures \result <==> size() != \old(size());
        @*/
-    boolean removeAll(/*@non_null*/ Collection<?> c) throws NullPointerException;
+    boolean removeAll(/*@ non_null*/ Collection<?> c) throws NullPointerException;
 
     // specification inherited
     void clear();
@@ -104,8 +105,59 @@ public interface Set<E> extends Collection<E> {
                ((\forall Object oo; contains(oo) <==> ((Set)o).contains(oo))
              && contains(null) <==> ((Set)o).contains(null)); */
     //-RAC@   ensures  \result ==> (values.length == ((Set)o).values.length);
-    /*@ pure @*/ boolean equals(/*@nullable*/ Object o);
+    /*@ pure @*/ boolean equals(/*@ nullable*/ Object o);
 
     // specification inherited
     int hashCode();
+    
+    //@ public normal_behavior
+    //@ ensures \result.size() == 0;
+    //@ pure
+    public static <E> java.util.Set<E> of();
+    //@ public normal_behavior
+    //@ ensures \result.size() == 1;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 2;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 3;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 4;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 5;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 6;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4, E e5);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 7;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4, E e5, E e6);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 8;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4, E e5, E e6, E e7);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 9;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8);
+    //@ public normal_behavior
+    //@ ensures \result.size() <= 10;
+    //@ pure
+    public static <E> java.util.Set<E> of(E e0, E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8, E e9);
+    //@ public normal_behavior
+    //@ ensures elements != null ==> \result.size() <= elements.length;
+    //@ pure
+    @SuppressWarnings("unchecked")
+    public static <E> java.util.Set<E> of(E... elements);
+
 }

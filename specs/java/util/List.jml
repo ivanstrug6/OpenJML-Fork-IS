@@ -25,39 +25,32 @@ package java.util;
  * @author Brandon Shilling
  * @author Gary T. Leavens
  * @author Erik Poll
- */
-public interface List<E> extends Collection<E> {
+ */      @SuppressWarnings("unchecked")
+public interface List<E> extends SequencedCollection<E> {
 
     /*@ public normal_behavior
       @   ensures \result;
       @ public pure model boolean initialList();
       @*/
 
-//    //@ model pure public static function helper Object get(Content c, \bigint i);
+//    //@ model pure public static no_state helper Object get(Content c, \bigint i);
 
 //    /*-RAC@ public normal_behavior
 //      @   ensures \result <==> ( c.theSize == cc.theSize &&
 //      @     (\forall \bigint i; 0<=i && i<c.theSize; get(c,i) == get(cc,i)));
 //      @*/
-//    //-RAC@ function
+//    //-RAC@ no_state
 //    //-RAC@ public pure static model boolean equals(Content c, Content cc);
 
     // specification inherited
-    //@ pure
+    //@ strictly_pure helper
     int size();
 
     // specification inherited
-    //@ pure
+    //@ strictly_pure helper
     boolean isEmpty();
 
-    //@ also public normal_behavior
-    //@   requires o == null;
-    //-RAC@   ensures \result == !(\forall int i; 0<=i && i<size(); values[i] != null);
-    //+RAC@   ensures \result == !(\forall int i; 0<=i && i<size(); get(i) != null);
-    //@ also public behavior
-    //@   requires o != null;
-    //-RAC@   ensures (\result <==> (\exists int i; 0<=i && i<size(); nullequals(o,values[i])));
-    //@ pure
+    //@ spec_pure
     boolean contains(/*@nullable*/ Object o);
 
     /*@ also
@@ -98,47 +91,51 @@ public interface List<E> extends Collection<E> {
       @   also
       @     requires colSize > arrSize;
       @     assignable \nothing;
+      @     ensures \result != null;
       @     ensures \fresh(\result) && \result.length == colSize;
       @     ensures (\forall int k; 0 <= k && k < colSize;
       @                             \result[k] == values[k]);
       @   |}
       @ also public exceptional_behavior
       @   requires a == null;
-      @   assignable \not_specified;
       @   signals_only NullPointerException;
 
               // FIXME - spec the exceptions
       @*/
+    /*+RAC@ also public behavior requires true; */
     <T> T[] toArray(T[] a) throws NullPointerException;
 
     /*-RAC@ also public normal_behavior
-      @   requires !containsNull ==> o != null;
+      @   requires containsNull || o != null;
       @   assignable values;
-      @   ensures values.length == \old(values.length+1); 
-      @   ensures values[values.length-1] == o;
-      @   //ensures (\forall \bigint i; 0 <= i < values.length-1; 
-      @   //                 values[i] == \old(values[i]); 
       @   ensures \result;
+      @   ensures values == \old(values).append(o); 
+      @   ensures values[values.length-1] == o;
+      @   ensures \forall \bigint i; 0 <= i < values.length-1; 
+      @                    values[i] == \old(values[i]); 
+      @   ensures values.contains(o);
       @*/
-    boolean add(/*@ nullable*/ E o);
+    /*+RAC@ also public behavior requires true; */
+    boolean add(/*@ nullable */ E o);
 
 
     /*-RAC@
       @ also public normal_behavior
-      @   requires contains(o);
+      @   requires values.contains(o);
       @   assignable values;
       @   ensures !\result ==> values.length == \old(values.length);
       @   ensures \result ==> values.length == \old(values.length-1);
       @*/
-    /* FIXME @ ensures (\exists \bigint j; 0<=j && j<\old(size()) && nullequals(o,get(content,j));
+    /* FIXME @ ensures (\exists \bigint j; 0<=j && j<\old(size()) && Collection.nullequals(o,get(content,j));
               (\forall \bigint k; 0<=k && k<j; get(content,k) == \old(get(content,k)))
           &&  (\forall \bigint k; j<k && k<content.theSize; get(content,k-1)==\old(get(content,k+1)))); */
     /*-RAC@ also public exceptional_behavior
-      @   requires !contains(o);
+      @   requires !values.contains(o);
       @   assignable \nothing;
       @   signals_only NoSuchElementException;
       @*/
     // FIXME - watch out for optional exceptions
+    /*+RAC@ also public behavior requires true; */
     boolean remove(Object o);
 
     // specification inherited
@@ -156,18 +153,22 @@ public interface List<E> extends Collection<E> {
     // FIXME - retains order
     boolean retainAll(Collection<?> c) throws NullPointerException;
 
+    public default java.util.List<E> reversed();
+    
     // specification inherited
     void clear();
 
     /*-RAC@ also
       @ public normal_behavior
       @   requires o instanceof List && size() == ((List) o).size(); 
-      @   ensures \result <==> (\forall int i; 0<=i && i < values.length; // FIXME:  \bigint instead of int
-      @       nullequals(values[i],((List)o).values[i])); 
+      @   ensures \result <==> (\forall \bigint i; 0 <= i < values.length; // FIXME:  \bigint instead of int
+      @       Objects.equals(values[i],((List<E>)o).values[i])); 
       @ also public normal_behavior
-      @   requires !(o instanceof List && size() == ((List) o).size());
+      @   requires !(o instanceof List && size() == ((List<E>) o).size());
       @   ensures !\result;
       @*/
+    /*+RAC@ also public behavior requires true; */
+    @SuppressWarnings("unchecked")
     /*@ pure @*/ boolean equals(Object o);
 
     // specification inherited
@@ -177,12 +178,13 @@ public interface List<E> extends Collection<E> {
     //@   requires 0 <= index && index < size();
     //-RAC@   ensures \result == values[index];
     //-RAC@   ensures !containsNull ==> \result != null;
+    //-RAC@   ensures \typeof(\result) <:= \typearg1(\typeof(this));
     //@ also
     //@ public exceptional_behavior
     //@   requires !(0 <= index && index < size());
     //@   signals_only IndexOutOfBoundsException;
     //@  // FIXME - other exceptions
-    /*@ pure @*/ E get(int index);
+    /*@ spec_pure @*/ E get(int index);
 
     /*-RAC@
       @ public behavior
@@ -192,10 +194,10 @@ public interface List<E> extends Collection<E> {
       @   assignable objectState;
       @   ensures \not_modified(containsNull,values.length);
       @   ensures \result == (\old(get(index)));
-      @   ensures get(index) == element; */
-    /*  @   ensures (\forall \bigint i; 0<=i && i<content.theSize && i != index;  FIXME - fix the use of get(content,i)
-      @               get(content,i) == \old(get(content,i))); */
-    /*-RAC@   signals_only UnsupportedOperationException, ClassCastException,
+      @   ensures get(index) == element;
+      @   //  ensures (\forall \bigint i; 0<=i && i<content.theSize && i != index;  FIXME - fix the use of get(content,i)
+      @   //            get(content,i) == \old(get(content,i)));
+      @   signals_only UnsupportedOperationException, ClassCastException,
                          NullPointerException, IllegalArgumentException;
       @   signals (UnsupportedOperationException)
       @           (* set method not supported by list *);
@@ -215,6 +217,7 @@ public interface List<E> extends Collection<E> {
       @   signals_only IndexOutOfBoundsException;
       @ |}
       @*/
+    /*+RAC@ public behavior requires true; */
     E set(int index, E element);
     
     /*-RAC@ public behavior
@@ -261,7 +264,8 @@ public interface List<E> extends Collection<E> {
       @   signals_only IndexOutOfBoundsException;
       @ 
       @*/
-    void add(int index, E element);
+    /*+RAC@ public behavior requires true; */
+    void add(int index, /*@ nullable */ E element);
 
     /*-RAC@ public behavior
       @   requires  0 <= index && index < size();
@@ -283,13 +287,15 @@ public interface List<E> extends Collection<E> {
       @   assignable \nothing;
       @   signals_only IndexOutOfBoundsException;
       @*/
+    /*+RAC@ public behavior requires true; */
     E remove(int index);
 
     /*@ public behavior
       @   ensures -1 <= \result < size();
-      @   //-RAC@ ensures \result >= 0 ==> o.equals(values[\result]);
-      @   //-RAC@ ensures (\forall int i; 0 <= i < \result; !o.equals(values[i]));
-      @   //-RAC@ ensures \result == -1 ==> (\forall int i; 0 <= i < size(); !o.equals(values[i]));
+      @   ensures \result == -1 <==> !contains(o);
+      @   //-RAC@ ensures \result >= 0 ==> Objects.equals(o, values[\result]);
+      @   //-RAC@ ensures (\forall int i; 0 <= i < \result; !Objects.equals(o, values[i]));
+      @   //-RAC@ ensures \result == -1 <==> (\forall int i; 0 <= i < size(); !Objects.equals(o, values[i]));
       @   signals_only ClassCastException, NullPointerException;
       @   signals (ClassCastException)
       @           (* class of specified element is incompatible with this *);
@@ -297,13 +303,7 @@ public interface List<E> extends Collection<E> {
       @            (* element is null and null elements are not
       @               supported by this *);
       @*/
-    /*-RAC@   ensures \result != -1 ==> nullequals(o,values[\result]);
-      @   // ensures (\forall int i; (0<=i && i < \result) ==> !nullequals(o,get(content,i)));
-      @   //ensures \result == -1 <==>
-          //   (\forall int i; (0<=i && i < content.theSize) ==> !nullequals(o,get(content,i)));
-      @   //ensures \result == -1 <==> !contains(o);
-      @*/
-    /*@ pure @*/ int indexOf(Object o);
+    /*@ pure @*/ int indexOf(/*@ nullable*/Object o);
 
     /*@ public behavior
       @   ensures \result >= -1 && \result < size();
@@ -316,8 +316,8 @@ public interface List<E> extends Collection<E> {
       @               supported by this *);
       @*/
     /*-RAC@
-      @   ensures \result != -1 ==> nullequals(o,values[\result]);
-      @   ensures (\forall int i; \result<i && i < size(); !nullequals(o,values[i]));
+      @   ensures \result != -1 ==> Objects.equals(o,values[\result]);
+      @   ensures (\forall int i; \result<i && i < size(); !Objects.equals(o,values[i]));
       @*/
     /*@ pure @*/ int lastIndexOf(Object o);
 

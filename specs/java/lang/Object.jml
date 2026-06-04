@@ -19,6 +19,7 @@
 // the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 
 package java.lang;
+import org.jmlspecs.annotation.*;
 
 /** JML's specification of java.lang.Object.
  *
@@ -27,22 +28,32 @@ package java.lang;
  * @author Specifications from Compaq SRC's ESC/Java
  * @author David R. Cok
  */
+//@ non_null_by_default
 public class Object {
 
     /** A data group for the complete state of this object.  
      */
-    //@ model public JMLDataGroup objectState;
+    //@ model public final \datagroup objectState;
 
     /** Use this for the private state holding benevolent side effects */
-    //@ model public JMLDataGroup privateState; in objectState;
+    //@ model public final \datagroup privateState; in objectState;
+    
+    // This \string represents the value that will be produced by toString()
+    //-RAC@ model public instance \string modelString; in objectState;
+    
+    // This \string represents the value acucmulated by CharSequence and its derived classes, 
+    // and also by Appendable and its derived classes -- it would be nice if this could be the same
+    // as modelString but it is possible for derived classes to have these be different values
+    //-RAC@ model public instance \string chars; in objectState;
+
 
     /** The Object that has a field pointing to this Object.
      * Used to specify (among other things) injectivity (see
      * the ESC/Java User's Manual).
      */
-    //@ ghost public nullable Object owner;
-        // NB It is inconvenient to include owner in objectState,
-        // because generally we do not change the owner after initialization
+    //@ ghost public nullable Object __owner;
+        // NB It is inconvenient to include __owner in objectState,
+        // because generally we do not change the __owner after initialization
 
     /** A (model) value unique to the equivalence class defined by equals().
      *  Regular hashCode() might have conflicts. */
@@ -50,20 +61,24 @@ public class Object {
 
     /*@ public normal_behavior
       @   assignable \nothing;
+      @   reads \nothing;
       @*/
     public /*@ pure @*/ Object();
-
-
+    
+    
+    // Note that returned Class objects are interned. They are not fresh,
+    // possibly unless they have never been previously loaded by a ClassLoader.
     /*+ESC@ public normal_behavior
       @   ensures \result == \erasure(\typeof(this));
+      @   ensures \isarray(\typeof(this)) == \isarray(\result);
       @*/
-    public final /*@ pure non_null */ Class<?> getClass();
+    public final /*@ spec_pure non_null */ Class<?> getClass();
 
-    //  -RAC@ public model int theHashCode; in objectState;
+    //-RAC@ public model int theHashCode; in objectState;
 
     //@ public normal_behavior
     //@     assignable privateState;
-    //  -RAC@ ensures \result == theHashCode;  
+    //-RAC@ ensures \result == theHashCode;  
     //@ also public code normal_behavior
     //@     assignable privateState;
     //@     ensures \result == System.identityHashCode(this);
@@ -74,27 +89,32 @@ public class Object {
 
     /*@  public code normal_behavior
       @     requires obj != null;
-      @     ensures (* \result is true when obj is "equal to" this object *);
-      @     ensures \result <==> (uniqueHash == obj.uniqueHash);
+      @     assignable \nothing;
+      @     ensures (* result is true when obj is "equal to" this object *);
+      @     //-RAC@ ensures \result <==> (uniqueHash == obj.uniqueHash);
       @  also
       @   public normal_behavior
       @     requires this == obj;
+      @     assignable \nothing;
       @     ensures \result;
       @  also
       @   public normal_behavior
       @     requires obj != null && \typeof(this) == \type(Object);
+      @     assignable \nothing;
       @     ensures \result <==> this == obj;
       @ also 
       @   public normal_behavior
       @     requires obj == null;
+      @     assignable \nothing;
       @     ensures !\result;
       @*/
-    public /*@ pure @*/ boolean equals(/*@\readonly*//*@ nullable*/ Object obj);
+    //@ pure // FIXME - really? for all subclasses also?
+    public boolean equals(/*@ nullable*/ Object obj);
 
     /*@ public normal_behavior
       @   requires this instanceof Cloneable;
+      @   requires this instanceof Object[];
       @   assignable \nothing;
-      // FIXME - be sure \elemtype is defined on non-array types
       @   ensures \elemtype(\typeof(\result)) == \elemtype(\typeof(this));
       @*/
     //-RAC@ also public normal_behavior
@@ -105,7 +125,7 @@ public class Object {
       @   requires this instanceof Cloneable;
       @   assignable \nothing;
         // Note: clone is magic.  Object.clone ensures the following
-        // strict equality when it is called but only if subclasses are
+        // strict equality when it is called but only if subclasses
         // fulfill it by calling super.clone();
       @   ensures \typeof(\result) == \typeof(this);  // This is not a strict requirement, although generally expected
       @   ensures \result != this; // This is not a strict requirement, although generally expected
@@ -181,70 +201,46 @@ public class Object {
     //@ pure
     protected /*@ non_null */ Object clone() throws CloneNotSupportedException;
 
-    /** Use theString as the (pure) model value of toString() */
-    //-RAC@ public model non_null String theString; in objectState;
-
-    // @ public code normal_behavior
-    // @   ensures \result == true;
-    // @ pure
-    //@ model public boolean toStringDefined;
-    //@ represents toStringDefined = true;
-    
-    /*-RAC@   public normal_behavior // FIXME - do we want this to be normal_behavior?
-      @     requires toStringDefined;
-      @     ensures \result == theString;
-      @     ensures \invariant_for(\result);
-      @     ensures (* \result is a string representation of this object *);
-      @ also public code normal_behavior
-      @     requires toStringDefined;
-      @     assignable \nothing;
-      @ // Ignore the case of what an Object actually produces as a String
-      @*/
-    //@ model public non_null pure String ptoString();
-    
-    /*-RAC@   public normal_behavior // FIXME - do we want this to be normal_behavior?
-    @     requires toStringDefined;
-    @     // frame condition must be set by derived classes
-    @     ensures \result == ptoString();
+    /*-RAC@   public normal_behavior
+    @     ensures \result.chars == modelString;
     @     ensures (* \result is a string representation of this object *);
     @ also public code normal_behavior
-    @     requires toStringDefined;
     @     assignable \nothing;
     @ // Ignore the case of what an Object actually produces as a String
     @*/
+    /*+RAC@ public code normal_behavior requires true; */
     public /*@ non_null @*/ String toString();
 
     //@ public normal_behavior
     //@   ensures true;
-    //@ pure // Not specifying multi-threqaded behavior
+    //@ pure // Not specifying multi-threaded behavior
     public final void notify();
 
     //@ public normal_behavior
     //@   ensures true;
-    //@ pure // Not specifying multi-threqaded behavior
+    //@ pure // Not specifying multi-threaded behavior
     public final void notifyAll();
 
+    // Not specifying multi-threaded behavior
     //@ public behavior
-    //@   requires timeout >= 0L;
+    //@   requires timeoutMillis >= 0L;
           // FIXME also check thread ownership - IllegalMonitorStateException
     //@   assignable \nothing;
     //@ also public exceptional_behavior
-    //@   requires timeout < 0;
+    //@   requires timeoutMillis < 0;
     //@   assignable \nothing;
     //@   signals_only IllegalArgumentException;
-    public final void wait(long timeout) throws InterruptedException;
+    public final void wait(long timeoutMillis) throws InterruptedException;
 
     //@ public behavior
-    //@   requires timeout >= 0L;
+    //@   requires timeoutMillis >= 0L;
     //@   requires 0 <= nanos;
     //@   requires nanos < 1000000;
-    //@   assignable \not_specified;
           // FIXME also check thread ownership - IllegalMonitorStateException
     //@ also public exceptional_behavior
-    //@   requires timeout < 0 || nanos < 0 || nanos >= 1000000;
-    //@   assignable \not_specified;
+    //@   requires timeoutMillis < 0 || nanos < 0 || nanos >= 1000000;
     //@   signals_only IllegalArgumentException;
-    public final void wait(long timeout, int nanos)
+    public final void wait(long timeoutMillis, int nanos)
         throws InterruptedException;
 
     //@ public behavior
@@ -252,16 +248,8 @@ public class Object {
     //@   assignable \nothing;
     //@   signals_only InterruptedException;
     public final void wait() throws InterruptedException;
-
-    /*@ protected normal_behavior
-      @   requires objectTimesFinalized == 0 ; // FIXME && \lockset.isEmpty();
-      @   assignable objectTimesFinalized, objectState;
-      @   ensures objectTimesFinalized == 1;
-      @*/
-    protected void finalize() throws Throwable;
-
-    /** The number of times this object has been finalized.
-     */
-    //@ protected ghost int objectTimesFinalized = 0; // not part of objectState
+    
+    // finalize is deprecated
+    // protected void finalize();
 
 }
