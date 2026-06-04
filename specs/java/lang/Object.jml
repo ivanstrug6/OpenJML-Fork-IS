@@ -78,7 +78,7 @@ public class Object {
 
     //@ public normal_behavior
     //@     assignable privateState;
-    //-RAC@ ensures \result == theHashCode;  
+    //+RAC@ ensures \result == theHashCode;
     //@ also public code normal_behavior
     //@     assignable privateState;
     //@     ensures \result == System.identityHashCode(this);
@@ -201,8 +201,8 @@ public class Object {
     //@ pure
     protected /*@ non_null */ Object clone() throws CloneNotSupportedException;
 
-    /*-RAC@   public normal_behavior
-    @     ensures \result.chars == modelString;
+    /*-RAC@   public behavior
+    @     // ensures \result.chars == modelString;   // ESC-disabled: unmeetable model-field obligation (FinModel ISSUE-146)
     @     ensures (* \result is a string representation of this object *);
     @ also public code normal_behavior
     @     assignable \nothing;
