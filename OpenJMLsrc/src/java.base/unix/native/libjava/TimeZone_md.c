@@ -114,7 +114,7 @@ getZoneName(char *str)
 {
     static const char *zidir = "zoneinfo/";
 
-    char *pos = strstr((const char *)str, zidir);
+    char* pos = strstr(str, zidir);
     if (pos == NULL) {
         return NULL;
     }
