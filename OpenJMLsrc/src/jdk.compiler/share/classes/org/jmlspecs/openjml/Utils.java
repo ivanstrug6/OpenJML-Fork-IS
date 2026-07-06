@@ -1185,6 +1185,7 @@ public class Utils {
     public boolean hasSpecPublic(Symbol s) {
         if (s instanceof ClassSymbol) {
             var tspecs = JmlSpecs.instance(context).getLoadedSpecs((ClassSymbol)s);
+            if (tspecs == null) return false; // D-4: null-guard for empty-spec/annotation-only classes
             return hasMod(tspecs.modifiers, Modifiers.SPEC_PUBLIC);
         }
         if (s instanceof VarSymbol) {
@@ -1193,6 +1194,7 @@ public class Utils {
         }
         if (s instanceof MethodSymbol) {
             var tspecs = JmlSpecs.instance(context).getLoadedSpecs((MethodSymbol)s);
+            if (tspecs == null) return false; // D-4: null-guard for methods with no loaded specs
             return hasMod(tspecs.mods, Modifiers.SPEC_PUBLIC);
         }
         return s != null && s.attribute(JmlAttr.instance(context).modToAnnotationSymbol.get(Modifiers.SPEC_PUBLIC)) != null;
@@ -1201,14 +1203,17 @@ public class Utils {
     public boolean hasSpecProtected(Symbol s) {
         if (s instanceof ClassSymbol) {
             var tspecs = JmlSpecs.instance(context).getLoadedSpecs((ClassSymbol)s);
+            if (tspecs == null) return false; // D-3: null-guard for empty-spec/annotation-only classes
             return hasMod(tspecs.modifiers, Modifiers.SPEC_PROTECTED);
         }
         if (s instanceof VarSymbol) {
             var tspecs = JmlSpecs.instance(context).getLoadedSpecs((VarSymbol)s);
+            if (tspecs == null) return false; // D-3: null-guard symmetric with hasSpecPublic VarSymbol branch
             return hasMod(tspecs.mods, Modifiers.SPEC_PROTECTED);
         }
         if (s instanceof MethodSymbol) {
             var tspecs = JmlSpecs.instance(context).getLoadedSpecs((MethodSymbol)s);
+            if (tspecs == null) return false; // D-3: null-guard for methods with no loaded specs
             return hasMod(tspecs.mods, Modifiers.SPEC_PROTECTED);
         }
         return s != null && s.attribute(JmlAttr.instance(context).modToAnnotationSymbol.get(Modifiers.SPEC_PROTECTED)) != null;

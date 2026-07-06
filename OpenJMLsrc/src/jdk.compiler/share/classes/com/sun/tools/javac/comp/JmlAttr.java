@@ -4759,7 +4759,10 @@ public class JmlAttr extends Attr implements IJmlVisitor {
                 if (JmlOption.ALLOW_PURE_IN_SPECS.isSet(context)) isAllowed |= isPureMethod(msym);  // FIXME - decide whether to allow (non-deterministic) pure methods in specs
                 if (!isAllowed) {
                     // FIXME - really need to check for recursion at any level. Alternately just make missing purity always an error
-                    if (enclosingMethodEnv.enclMethod.sym == msym) {
+                    // Patch D-2: guard against null enclosingMethodEnv (class-level invariant/constraint context,
+                    // no enclosing method). In such contexts recursion detection is impossible; issue a warning.
+                    if (enclosingMethodEnv != null && enclosingMethodEnv.enclMethod != null
+                            && enclosingMethodEnv.enclMethod.sym == msym) {
                         nonPureError(tree, msym);
                     } else {
                         nonPureWarning(tree, msym);
