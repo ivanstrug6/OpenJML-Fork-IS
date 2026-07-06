@@ -1863,7 +1863,14 @@ public class JmlParser extends JavacParser {
             //            // Call it lightweight
         } else {
             if (ext != null && !isNone(mods) && !((JmlModifiers)mods).anyModsInJava) {
-                utils.error(mods,"jml.no.mods.lightweight");
+                // FinModel patch C (2026-05-14): include the offending modifier name in the
+                // diagnostic so users see the standalone-block placement fix in the error text.
+                // (See Sub-class C investigation; OpenJML upstream improvement candidate.)
+                JmlModifiers jmlMods = (JmlModifiers) mods;
+                String offendingMod = !jmlMods.jmlmods.isEmpty()
+                        ? jmlMods.jmlmods.get(0).jmlclausekind.keyword()
+                        : com.sun.tools.javac.code.Flags.toString(mods.flags).trim();
+                utils.error(mods, "jml.no.mods.lightweight.named", offendingMod);
                 mods = null;
             }
             ext = null;

@@ -2812,6 +2812,10 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		JCIdent id = treeutils.makeIdent(p, d.sym);
 		if (!rac) id.type = type;
 		d.ident = id;
+		// Patch D-1: guard against null currentStatements (annotation-attribute processing context,
+		// e.g. default value literals in @interface members). In such contexts there is no
+		// enclosing statement list, so we skip the add and simply return the ident.
+		if (currentStatements == null) return id;
 		currentStatements.add(d);
 		treeutils.copyEndPosition(d, expr);
 		treeutils.copyEndPosition(id, expr);
@@ -7565,6 +7569,8 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		throwableDecl.sym.appendAttributes(List.<Compound>of(c));
 		throwableDecl.init = treeutils.nullLit;
 		stats.add(throwableDecl);
+		for (int k = 0; k < frameStack.size(); k++)
+			if (frameStack.get(k) instanceof JmlStatementLoopModifies m) m.nestedLocals.add(throwableDecl.sym);
 
 		Name catchName = names.fromString("__JMLthrowableCatch_" + resource.pos);
 		JCVariableDecl catchDecl = treeutils.makeVarDef(syms.throwableType, catchName,
@@ -13005,7 +13011,18 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 				addInvariants(arg, arg.type, id, currentStatements, false, false, false, false, false, false,
 				        Label.INVARIANT_ENTRANCE, msg);
 			}
-			clearInvariants(); // TODO - test this?
+			// FinModel patch A+B (2026-05-14): Do not clear the inProcessInvariants guard
+			// while translatingJML=true (i.e. while we are inside a JML expression
+			// evaluation context such as convertJML).  Clearing here was destroying the
+			// recursion guard maintained by startInvariants/endInvariants, allowing
+			// addInvariants to re-enter for the same class symbol on every subsequent
+			// iteration of the invariant-clause loop in the outer addInvariants call.
+			// That unguarded re-entry triggered the StackOverflowError + MISMATCHED-BLOCKS
+			// cascade (Sub-class A) and the applyHelper-finally popBlock mismatch
+			// (Sub-class B) observed in OpenJML issues #559 / #884 / FinModel ISSUE-054.
+			// Outside JML-translation context the clear is still needed to reset between
+			// independent top-level invariant evaluation passes.
+			if (!translatingJML) clearInvariants(); // TODO - test this?
 		}
 	}
 
@@ -14269,7 +14286,7 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		callerEnv.methodSym = methodDecl.sym;
 		TranslationEnv targetEnv = itargetEnv == null ? callerEnv : itargetEnv;
         MethodSymbol methodSym = targetEnv.methodSym;
-        Object frameTop = frameStack.peek();
+        Object frameTop = frameStack.isEmpty() ? null : frameStack.peek();
         if (!comparingToCallee && kind == assignableClauseKind && frameTop instanceof JmlStatementLoopModifies loopwrites) {
           try {
             if (itargetEnv == null) targetEnv = currentEnv;
@@ -17976,6 +17993,10 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 											// not a full solution
 		}
 		if (stringType) {
+            // Patch D-1b: annotation-attribute default-value literals have no enclosing
+            // statement list (currentStatements == null). Skip String invariant/nullness
+            // processing in that context - there is no method body to assert into.
+            if (currentStatements == null) { result = eresult = id; return; }
 
 			addNullnessAllocationTypeCondition(that, id.sym, true, false, false, null);
 
@@ -19783,7 +19804,7 @@ public class JmlAssertionAdder extends JmlTreeScanner {
                 statm.asLocset = ls;
             }
         }
-        var o = frameStack.peek();
+        var o = frameStack.isEmpty() ? null : frameStack.peek();
         if (o instanceof JmlStatementLoopModifies fm) {
             var ls = convertAssignableToLocsetExpression(fm, fm.storerefs, enclosingClass, true);
             fm.asLocset = ls;
