@@ -1244,7 +1244,15 @@ public class JmlEnter extends Enter {
 					System.out.println("RETTYPE " + msym + " " + t + " " + mdecl.sym + " " + (msym.type != null) + " "
 							+ msym.type + " " + mdecl.sym.type);
 				}
-				if (!specsTypeSufficientlyMatches(t, msym.getReturnType())) {
+				Type tForCompare = t;
+				if (mdecl.typarams.nonEmpty() && msym.getTypeParameters().nonEmpty()) {
+					ListBuffer<Type> specTVars = new ListBuffer<>();
+					for (var tp : mdecl.typarams) specTVars.append(tp.type);
+					ListBuffer<Type> javaTVars = new ListBuffer<>();
+					for (var tv : msym.getTypeParameters()) javaTVars.append(tv.type);
+					tForCompare = types.subst(t, specTVars.toList(), javaTVars.toList());
+				}
+				if (!specsTypeSufficientlyMatches(tForCompare, msym.getReturnType())) {
 					utils.error(mdecl.restype, "jml.mismatched.return.type",
 							msym.enclClass().fullname + "." + msym.toString(), t, msym.getReturnType());
 				}
