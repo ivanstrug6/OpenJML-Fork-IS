@@ -348,7 +348,15 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
     					if (javaMethodDecl.specsDecl == null) {
                         	// FIXME - fix matching of method types
     						Type specResultType = (specMethodDecl.restype == null) ? null : attr.attribType(specMethodDecl.restype, env); // FIXME - should use the env for the specCU
-                        	if (specResultType != null && !types.isSameType(javaMethodDecl.restype.type, specResultType)) {
+    						Type specResultTypeForCompare = specResultType;
+    						if (specResultType != null) {
+    							List<Type> specTvars = specMethodDecl.typarams.map(tp -> tp.type);
+    							List<Type> javaTvars = matchSym.getTypeParameters().map(tv -> tv.type);
+    							if (!specTvars.isEmpty() && !javaTvars.isEmpty()) {
+    								specResultTypeForCompare = types.subst(specResultType, specTvars, javaTvars);
+    							}
+    						}
+                        	if (specResultTypeForCompare != null && !types.isSameType(javaMethodDecl.restype.type, specResultTypeForCompare)) {
     							String msg = "The result type of method " + specMethodDecl.sym.owner + "." + specMethodDecl.sym 
     							                        + " in the specification differs from the type in the source/binary: " 
     							                        + specMethodDecl.restype.type + " vs. " + matchSym.getReturnType();
