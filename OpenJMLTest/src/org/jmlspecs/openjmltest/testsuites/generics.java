@@ -159,4 +159,45 @@ public class generics extends TCBase {
                 """
                 );
     }
+
+    /** Patch H (OpenJML#367) Case A: source-companion generic method, unbounded, matched arity.
+     *  Both .java and its .jml companion declare <T> T id(T x); pre-patch this emitted a
+     *  spurious "T vs. T" result-type mismatch (spec-side TypeVar != java-side TypeVar by identity).
+     *  Post-patch: verifies with ZERO errors. */
+    @Test
+    public void testGenericMethodCompanionUnbounded() {
+        addMockFile("$A/A.jml","public class A { <T> T id(T x); }");
+        helpTCText("A.java","public class A { <T> T id(T x) { return x; } }");
+    }
+
+    /** Patch H (OpenJML#367) Case B: source-companion generic method, bounded, matched arity.
+     *  Same shape as Case A but with a bounded type parameter <T extends Comparable<T>>.
+     *  Post-patch: verifies with ZERO errors. */
+    @Test
+    public void testGenericMethodCompanionBounded() {
+        addMockFile("$A/A.jml","public class A { <T extends Comparable<T>> T id(T x); }");
+        helpTCText("A.java","public class A { <T extends Comparable<T>> T id(T x) { return x; } }");
+    }
+
+    /** Patch H (OpenJML#367) Case C (reviewer-requested edge): UNEQUAL type-param arity, both sides generic.
+     *  The .jml companion declares <T> T id(T x) but the .java method is <T,U> T id(T x) (java has an
+     *  extra type parameter U the spec does not declare). This MUST still produce an error post-patch
+     *  (never a false PASS) and MUST NOT crash -- proving the substitution guard does not paper over a
+     *  genuine arity mismatch. Analysis: matchMethod() resolves with 1 explicit type-arg against a
+     *  2-type-param java method, so resolution finds no applicable match and the "no method to match"
+     *  branch fires BEFORE the types.subst guard is reached.
+     *  NOTE (build-pending): the exact expected-error text + column below were derived by static
+     *  analysis of JmlMemberEnter.java line 339 (utils.error ... "There is no method to match this Java
+     *  declaration in the specification file: " + sourceDecl.sym + "." + specMethodDecl.sym); they were
+     *  NOT captured from a compiler run (patch-apply dispatch does not build). Confirm/adjust the string
+     *  and column at build time. If instead this case compiles with ZERO errors, that reveals
+     *  resolveMethod tolerating the arity mismatch and the patch would need an explicit
+     *  from.length()==to.length() guard -- surface that rather than relaxing this assertion. */
+    @Test
+    public void testGenericMethodCompanionArityMismatch() {
+        addMockFile("$A/A.jml","public class A { <T> T id(T x); }");
+        helpTCText("A.java","public class A { <T,U> T id(T x) { return x; } }"
+                ,"/$A/A.jml:1: error: There is no method to match this Java declaration in the specification file: A.<T>id(T)",24
+                );
+    }
 }
