@@ -231,7 +231,7 @@ public class escstrings extends EscBase {
                 }
                 """
                 ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (UndefinedCalledMethodPrecondition) in method m",27
-                ,"$SPECS/java/lang/String.jml:288: verify: Associated declaration",46
+                ,"$SPECS/java/lang/String.jml:298: verify: Associated declaration",46
                 ,optional(seq("$SPECS/java/lang/CharSequence.jml:65: verify: Precondition conjunct is false: 0 <= index < chars.length",34))
                 );
     }
@@ -277,7 +277,7 @@ public class escstrings extends EscBase {
                 ,anyorder(
                         seq("/tt/TestJava.java:6: verify: The prover cannot establish an assertion (Assert) in method m",12)
                         ,seq("/tt/TestJava.java:6: verify: The prover cannot establish an assertion (UndefinedCalledMethodPrecondition) in method m",43
-                             ,"$SPECS/java/lang/String.jml:288: verify: Associated declaration",46
+                             ,"$SPECS/java/lang/String.jml:298: verify: Associated declaration",46
                              ,optional("$SPECS/java/lang/CharSequence.jml:62: verify: Precondition conjunct is false: 0 <= index < chars.length",34)
                                  // FIXME - why does the above sometime occur and sometimes not
                                 )
@@ -501,5 +501,90 @@ public class escstrings extends EscBase {
     }
 
     // FIXME - also test interning
+
+    /** Patch I-A (ISSUE-1415) POSITIVE: with String.length() bounded above,
+     *  index-plus-small-constant arithmetic over a String index is provably
+     *  non-overflowing.  Both shapes are the ones FinModel's
+     *  DialectNormalizationRegistry hits (:307 and :592/:851). */
+    @Test
+    public void testStringLengthUpperBound() {
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ requires 0 <= i && i <= s.length();
+                    //@ ensures \\result == (i + 6 > s.length());
+                    public static /*@ pure */ boolean m(/*@ non_null */ String s, int i) {
+                        return i + 6 > s.length();
+                    }
+                    //@ requires 0 <= start && start < s.length();
+                    public static /*@ pure */ int openParen(/*@ non_null */ String s, int start) {
+                        return start + "OFFSET".length();
+                    }
+                }
+                """);
+    }
+
+    /** Patch I-A (ISSUE-1415) NEGATIVE CONTROL: the added bound must not become a
+     *  rubber stamp.  An absurd ceiling, and a ceiling one unit tighter than the
+     *  declared one, must both still be rejected. */
+    @Test
+    public void testStringLengthUpperBoundIsNotVacuous() {
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static void m(/*@ non_null */ String s) {
+                        //@ assert s.length() <= 1000;
+                    }
+                    public static void mTight(/*@ non_null */ String s) {
+                        //@ assert s.length() <= Integer.MAX_VALUE - 9;
+                    }
+                }
+                """
+                ,"/tt/A.java:4: verify: The prover cannot establish an assertion (Assert) in method m",13
+                ,"/tt/A.java:7: verify: The prover cannot establish an assertion (Assert) in method mTight",13
+                );
+    }
+
+    /** Patch I-B (ISSUE-1416) POSITIVE: a loop-carried StringBuilder accumulator
+     *  reset with setLength(0) is admissible under a named object-level loop frame.
+     *  Fails with `Assignable: ... \\everything` without the patch. */
+    @Test
+    public void testStringBuilderSetLengthLoopFrame() {
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static /*@ non_null */ String m() {
+                        StringBuilder cur = new StringBuilder();
+                        //@ loop_writes cur.objectState;
+                        //@ loop_invariant 0 <= i;
+                        for (int i = 0; i < 3; i++) {
+                            cur.append('x');
+                            cur.setLength(0);
+                        }
+                        return cur.toString();
+                    }
+                }
+                """);
+    }
+
+    /** Patch I-B (ISSUE-1416) NEGATIVE CONTROL: the new frame must be genuinely
+     *  scoped, not merely non-empty.  setLength must NOT havoc an unrelated object.
+     *  This method fails without the patch (setLength defaults to \\everything),
+     *  which is precisely what makes it a control rather than a tautology. */
+    @Test
+    public void testStringBuilderSetLengthFrameIsScoped() {
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static class Box { public int v; }
+                    public static void m(/*@ non_null */ StringBuilder a,
+                                         /*@ non_null */ Box b) {
+                        b.v = 5;
+                        a.setLength(0);
+                        //@ assert b.v == 5;
+                    }
+                }
+                """);
+    }
 
 }
