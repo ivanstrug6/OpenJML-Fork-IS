@@ -271,6 +271,16 @@ public final class String
       @*/
     
     // inherits specs from CharSequence - \result == chars.length
+    // Patch I-A (FinModel ISSUE-1415): platform upper bound on String length.
+    // String.length() is `value.length >> coder` where `value` is a byte[]; the JDK's
+    // own jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH is Integer.MAX_VALUE - 8
+    // ("some VMs reserve some header words in an array"), and HotSpot rejects byte[]
+    // allocations at the top of the int range outright.  Without SOME ceiling, no
+    // `index + smallConstant` expression over a String index is provably non-overflowing.
+    // ESC-only (//-RAC@): this is a platform fact, not a JLS guarantee, so it is used as
+    // a static-checking assumption and is not asserted at run time.
+    //@ also public normal_behavior
+    //-RAC@ ensures \result <= Integer.MAX_VALUE - 8;
     public /*@ strictly_pure helper @*/ int length();
     
     // inherits specs from CharSequence - \result <==> (chars.length==0)
