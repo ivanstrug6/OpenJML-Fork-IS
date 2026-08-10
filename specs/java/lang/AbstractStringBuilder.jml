@@ -39,7 +39,23 @@ abstract class AbstractStringBuilder implements Appendable,CharSequence {
 //    private int newCapacity(int);
 //    private int hugeCapacity(int);
 //    public void trimToSize();
-//    public void setLength(int);
+    // Patch I-B (FinModel ISSUE-1416): setLength had NO declaration at all, so ESC
+    // gave it the default `assignable \everything`, which no named loop_writes frame
+    // can admit.  Framed on the `chars` model field, matching this file's own append(...)
+    // family — `value` and `count` are `in chars`, so this havocs exactly the builder's
+    // own state and nothing else.  Two spec cases so the n < 0 path is modelled honestly
+    // rather than excluded by a precondition (which would add an obligation at every
+    // call site); the exceptional case carries its own frame so it does not re-open
+    // \everything.
+    //@ public normal_behavior
+    //@   requires 0 <= n;
+    //-RAC@   assignable chars;
+    //-RAC@   ensures chars.length == n;
+    //@ also public exceptional_behavior
+    //@   requires n < 0;
+    //@   assignable \nothing;
+    //@   signals_only StringIndexOutOfBoundsException;
+    public void setLength(int n);
 //    public char charAt(int);
 //    public int codePointAt(int);
 //    public int codePointBefore(int);
