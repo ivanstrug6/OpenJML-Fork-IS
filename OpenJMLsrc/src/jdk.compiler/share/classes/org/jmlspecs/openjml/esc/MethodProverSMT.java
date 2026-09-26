@@ -342,6 +342,17 @@ public class MethodProverSMT {
         }
         // newBlock is the translated version of the method body, for a given split
         JCBlock newblock = translatedMethod.getBody();
+        String translationFailure = jmlesc.assertionAdder.translationFailures.get(methodDecl);
+        if (newblock == null && translationFailure != null) {
+            // FinModel patch C3: translating this method for ESC failed (internal exception or an
+            // inconsistent block stack); report it against this method -- it is NOT verified --
+            // while the other methods of the class are still translated and proved.
+            JCDiagnostic d = utils.errorDiag(log.currentSource(), methodDecl, "jml.internal.notsobad",
+                    "ESC translation of " + utils.qualifiedMethodSig(methodDecl.sym)
+                    + " failed, so the method was NOT verified: " + translationFailure);
+            log.report(d);
+            return factory.makeProverResult(methodDecl,proverToUse,IProverResult.ERROR,null).setOtherInfo(d);
+        }
         if (newblock == null) {
             JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "esc.no.typechecking", methodDecl.name.toString());
             log.report(d);

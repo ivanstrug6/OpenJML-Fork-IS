@@ -215,8 +215,47 @@ public class Main extends com.sun.tools.javac.main.Main {
                 System.exit(Result.SYSERR.exitCode);
             }
         } else {
-            System.exit(execute(args, false));  // The boolean: true - errors to stdErr, false - errors to stdOut
+            System.exit(executeWithLargeStack(args));
         }
+    }
+
+    /** FinModel patch C3: the JML translation (JmlAssertionAdder, JmlAttr) is deeply recursive
+     * (nested method-call inlining, invariant cascades, long expression chains), and the default
+     * 1 MB main-thread stack overflows on realistic sources: a StackOverflowError part-way through
+     * translation corrupted the block stack (MISMATCHED BLOCKS-CBX). The command-line tool therefore
+     * runs on a thread with a large stack. The stack is reserved virtually and committed only as
+     * used. Size in MB: system property openjml.stackMB or env OPENJML_STACK_MB (default 512; 0 means
+     * run directly on the calling thread, e.g. when -Xss is managed externally). */
+    static int executeWithLargeStack(String[] args) {
+        long mb = 512;
+        try {
+            String v = System.getProperty("openjml.stackMB");
+            if (v == null) v = System.getenv("OPENJML_STACK_MB");
+            if (v != null && !v.isBlank()) mb = Long.parseLong(v.trim());
+        } catch (NumberFormatException e) {
+            // keep the default
+        }
+        if (mb <= 0) return execute(args, false);
+        final int[] exitCode = { Result.ABNORMAL.exitCode };
+        final Throwable[] failure = { null };
+        Thread t = new Thread(null, () -> {
+            try {
+                exitCode[0] = execute(args, false); // The boolean: true - errors to stdErr, false - errors to stdOut
+            } catch (Throwable e) {
+                failure[0] = e;
+            }
+        }, "openjml-main", mb * 1024L * 1024L);
+        t.start();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Result.ABNORMAL.exitCode;
+        }
+        if (failure[0] instanceof RuntimeException re) throw re;
+        if (failure[0] instanceof Error err) throw err;
+        if (failure[0] != null) throw new RuntimeException(failure[0]);
+        return exitCode[0];
     }
 
     /** Invokes the compiler on the given command-line arguments; errors go to stdout.
