@@ -2795,4 +2795,35 @@ public class escnew extends EscBase {
                 """);
     }
 
+
+    /** FinModel patch P: the sealed-type axiom only admits the permitted subtypes (controls). */
+    @Test
+    public void testSealedControls() {
+        helpEsc("A", """
+                class A {
+                    sealed interface Animal permits Dog, Cat {}
+                    record Dog(String name) implements Animal {}
+                    record Cat(String name) implements Animal {}
+                    sealed interface Shape permits Sq, Other {}
+                    non-sealed interface Other extends Shape {}
+                    final class Sq implements Shape {}
+
+                    //@ requires a != null;
+                    void bad(Animal a) {
+                        //@ assert a instanceof Dog;
+                    }
+                    //@ requires s != null;
+                    void shape(Shape s) {
+                        //@ assert s instanceof Sq || s instanceof Other;
+                    }
+                    //@ requires s != null;
+                    void shapeBad(Shape s) {
+                        //@ assert s instanceof Sq;
+                    }
+                }
+                """
+                ,"/A.java:11: verify: The prover cannot establish an assertion (Assert) in method bad",13
+                ,"/A.java:19: verify: The prover cannot establish an assertion (Assert) in method shapeBad",13
+                );
+    }
 }

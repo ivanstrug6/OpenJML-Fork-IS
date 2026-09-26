@@ -860,6 +860,10 @@ public class JmlTreeUtils {
         if (ltag == TypeTag.FLOAT || rtag == TypeTag.FLOAT) return syms.floatType;
         if (ltag == TypeTag.LONG || rtag == TypeTag.LONG) return syms.longType;
         if (ltag == TypeTag.INT || rtag == TypeTag.INT) return syms.intType;
+        // FinModel patch L: Java promotes mixed byte/short/char operands to int; neither char nor
+        // short holds all values of the other (nor char those of byte), so picking one of them made
+        // e.g. 'byte == char' a narrowing conversion of the byte operand.
+        if (ltag != rtag && isIntegral(ltag) && isIntegral(rtag)) return syms.intType;
         if (ltag == TypeTag.SHORT || rtag == TypeTag.SHORT) return syms.shortType;
         if (ltag == TypeTag.CHAR || rtag == TypeTag.CHAR) return syms.charType;
         if (ltag == TypeTag.BYTE || rtag == TypeTag.BYTE) return syms.byteType;
@@ -1749,9 +1753,13 @@ public class JmlTreeUtils {
         } catch (java.util.NoSuchElementException e) {
             // fall through to error message
         }
-        System.out.println("NO MATCH " + name + " " + receiver + " " + receiver.type + " " + nargs + " " + (nargs.length > 0 ? nargs[0].type.toString() : ""));
+        // FinModel patch N: the failure is reported as a jml.internal error just below; the raw stdout
+        // print and stack dump were debug noise interleaved with normal output.
+        if (print || utils.jmlverbose >= Utils.JMLDEBUG) {
+            System.out.println("NO MATCH " + name + " " + receiver + " " + receiver.type + " " + nargs + " " + (nargs.length > 0 ? nargs[0].type.toString() : ""));
+            Utils.dumpStack();
+        }
         utils.error(pos, "jml.internal", "No method " + name + " with " + nargs.length + " parameters of the requested types found in type " + receiver.type + "\n" + s);
-        Utils.dumpStack();
         return null;
     }
     

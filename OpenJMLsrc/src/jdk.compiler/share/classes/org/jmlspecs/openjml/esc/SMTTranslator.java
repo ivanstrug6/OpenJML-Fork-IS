@@ -643,6 +643,23 @@ public class SMTTranslator extends JmlTreeScanner {
             if ((ti.tsym.flags() & Flags.FINAL) != 0) {
             	if (quantOK) addCommand(smt,"(assert (forall ((t "+JAVATYPESORT+")) (=> ("+JAVASUBTYPE+" t "+tisym.toString()+")  (= t "+tisym.toString()+"))))");
             }
+            // FinModel patch P: a sealed type's only subtypes are itself and its permitted subtypes
+            // (Java's exhaustiveness guarantee), analogous to the final-type axiom above.
+            if (quantOK && ti.tsym instanceof Symbol.ClassSymbol cs && (cs.flags() & Flags.SEALED) != 0 && !cs.permitted.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("(assert (forall ((t ").append(JAVATYPESORT).append(")) (=> (").append(JAVASUBTYPE).append(" t ")
+                  .append(tisym.toString()).append(") (or (= t ").append(tisym.toString()).append(")");
+                for (Symbol p: cs.permitted) {
+                    sb.append(" (").append(JAVASUBTYPE).append(" t ").append(javaTypeSymbol(p.type).toString()).append(")");
+                }
+                sb.append("))))");
+                addCommand(smt, sb.toString());
+                // No object's dynamic type is an interface or abstract class, so for those the
+                // disjunct (= t T) cannot be an object's type
+                if ((cs.flags() & (Flags.INTERFACE | Flags.ABSTRACT)) != 0) {
+                    addCommand(smt, "(assert (forall ((o " + REF + ")) (=> (distinct o " + NULL + ") (distinct (javaTypeOf o) " + tisym.toString() + "))))");
+                }
+            }
             if (!ti.tsym.type.isParameterized()) {
                 // Note: ti.isParameterized() is true if the type name has actual parameters
                 // ti.tsym.type.isParameterized() is true if the declaration has parameters
@@ -1437,6 +1454,11 @@ public class SMTTranslator extends JmlTreeScanner {
                 if (t.getTag()  == TypeTag.TYPEVAR && !(t instanceof Type.WildcardType)) {
                     addType( ((Type.TypeVar)t).getUpperBound() );
                 }
+                // FinModel patch P: the permitted subtypes of a sealed type are needed for its
+                // exhaustiveness axiom (see the type-axiom loop in convert)
+                if (t.tsym instanceof Symbol.ClassSymbol cs && (cs.flags() & Flags.SEALED) != 0) {
+                    for (Symbol p: cs.permitted) addType(p.type);
+                }
             }
             if (t.tsym.type.isParameterized()) { // true if is or should be parameterized
                 if (t.getTypeArguments().size() != 0) {
@@ -1540,7 +1562,7 @@ public class SMTTranslator extends JmlTreeScanner {
             try {
                 // convert to a declaration or definition
                 IExpr init = null;
-                if (useFcnDef) init = decl.init == null ? null : convertExpr(decl.init);
+                if (useFcnDef) init = decl.init == null ? null : bvConvert(decl.type, decl.init.type, convertExpr(decl.init)); // FinModel patch L
                 
                 String s = makeBarEnclosedString(decl.name.toString());
                 ISymbol sym = F.symbol(s);
@@ -1602,7 +1624,7 @@ public class SMTTranslator extends JmlTreeScanner {
                 if (stat instanceof JmlVariableDecl) {
                     JmlVariableDecl decl = (JmlVariableDecl)stat;
                     if (!useFcnDef && decl.init != null) {
-                        IExpr exx = convertExpr(decl.init);
+                        IExpr exx = bvConvert(decl.type, decl.init.type, convertExpr(decl.init)); // FinModel patch L
                         exx = F.fcn(F.symbol("="), F.symbol(decl.name.toString()), exx);
                         ISymbol newsym = F.symbol(blockid + "__A" + (++count));
                         commands.add(new C_define_fun(newsym,new LinkedList<IDeclaration>(),boolSort,exx));
@@ -1624,7 +1646,8 @@ public class SMTTranslator extends JmlTreeScanner {
                             // This is an assumption that lhs == rhs because of an assignment.
                             // It is translated as an identiity equality
                             var lhs = convertExpr(bin.lhs);
-                            var rhs = convertExpr(bin.rhs);
+                            // FinModel patch L: implicit primitive widening/narrowing in the assignment
+                            var rhs = bvConvert(bin.lhs.type, bin.rhs.type, convertExpr(bin.rhs));
                             IExpr exx = F.fcn(eqSym, lhs, rhs);
                             ISymbol newsym = F.symbol(blockid + "__A" + (++count));
                             commands.add(new C_define_fun(newsym,new LinkedList<IDeclaration>(),boolSort,exx));
@@ -2004,7 +2027,8 @@ public class SMTTranslator extends JmlTreeScanner {
                 IExpr.IFcnExpr right = F.fcn(F.symbol("store"),
                         convertExpr(tree.args.get(1)),
                         convertExpr(tree.args.get(2)),
-                        convertExpr(tree.args.get(3))
+                        // FinModel patch L: implicit primitive conversion of the stored value to the field type
+                        bvConvert(tree.args.get(0).type, tree.args.get(3).type, convertExpr(tree.args.get(3)))
                         );
                 result = F.fcn(eqSym, convertExpr(tree.args.get(0)),right);
                 return;
@@ -2079,10 +2103,13 @@ public class SMTTranslator extends JmlTreeScanner {
                             convertExpr(tree.args.get(1)),
                             convertExpr(tree.args.get(2))
                             );
+                    // FinModel patch L: implicit primitive conversion of the stored value to the element type
+                    Type arrt = tree.args.get(2).type;
+                    Type elemt = arrt instanceof Type.ArrayType at ? at.elemtype : null;
                     IExpr.IFcnExpr newarray = F.fcn(F.symbol("store"),
                             sel,
                             convertExpr(tree.args.get(3)),
-                            convertExpr(tree.args.get(4))
+                            bvConvert(elemt, tree.args.get(4).type, convertExpr(tree.args.get(4)))
                             );
 
                     IExpr.IFcnExpr right = F.fcn(F.symbol("store"),
@@ -2827,7 +2854,14 @@ public class SMTTranslator extends JmlTreeScanner {
                                 result = F.fcn(F.id(F.symbol(ext),args),result);
                             }
                         } else {
-                            if (be > br) {
+                            // FinModel patch L: char is unsigned. Conversions into char wrap modulo 2^16
+                            // (unsigned), and char into short/byte must wrap too (same or fewer bits but
+                            // a larger positive range); the old signed-only, bits-only test left e.g.
+                            // (char)65533 == -3 and (short)'\uFFFD' == 65533, contradicting the implicit
+                            // range assumptions of the target type (vacuous proofs).
+                            if (tagr == TypeTag.CHAR) {
+                                result = F.fcn(F.symbol("mod"), result, F.numeral(65536));
+                            } else if (be > br || (tage == TypeTag.CHAR && br <= 16)) {
                                 if (br == 32) result = F.fcn(F.symbol("|#trunc32s#|"), result);
                                 if (br == 16) result = F.fcn(F.symbol("|#trunc16s#|"), result);
                                 if (br == 8) result = F.fcn(F.symbol("|#trunc8s#|"), result);
@@ -2887,6 +2921,23 @@ public class SMTTranslator extends JmlTreeScanner {
         }
     }
     
+    /** FinModel patch L: in bit-vector mode, applies the Java primitive conversion (widening
+     *  with sign/zero extension by source type, or narrowing by truncation) needed to store a
+     *  value of integral type 'source' into a location of integral type 'target'. Java/JML
+     *  trees carry such conversions implicitly (no JCTypeCast), which otherwise produced
+     *  SMT sort mismatches (e.g. int result = char value). A no-op outside BV mode. */
+    public IExpr bvConvert(Type target, Type source, IExpr expr) {
+        if (!useBV || target == null || source == null) return expr;
+        TypeTag tt = target.getTag();
+        TypeTag st = source.getTag();
+        if (tt == st || !isBVIntegral(tt) || !isBVIntegral(st)) return expr;
+        return castBV(tt, st, expr);
+    }
+
+    private static boolean isBVIntegral(TypeTag tag) {
+        return tag == TypeTag.BYTE || tag == TypeTag.SHORT || tag == TypeTag.CHAR || tag == TypeTag.INT || tag == TypeTag.LONG;
+    }
+
     public int bits(TypeTag tag) {
     	switch (tag) {
     	case BYTE: return 8;

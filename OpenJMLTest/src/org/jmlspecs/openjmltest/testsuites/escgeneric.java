@@ -73,7 +73,10 @@ public class escgeneric extends EscBase {
                 """
                 ,"/tt/TestJava.java:7: verify: There is no feasible path to program point after explicit assume statement in method tt.TestJava.ma(java.lang.Object)",9
                 ,"/tt/TestJava.java:8: verify: There is no feasible path to program point before explicit assert statement in method tt.TestJava.ma(java.lang.Object)",9
-                ,"/tt/TestJava.java:6: verify: There is no feasible path to program point at program exit in method tt.TestJava.ma(java.lang.Object)",15
+                // Feasibility points as currently emitted (cf. feasibility.java): an 'at implicit return'
+                // check, and 'at program exit' located at the method's closing brace
+                ,"/tt/TestJava.java:9: verify: There is no feasible path to program point at implicit return in method tt.TestJava.ma(java.lang.Object)",3
+                ,"/tt/TestJava.java:9: verify: There is no feasible path to program point at program exit in method tt.TestJava.ma(java.lang.Object)",3
                 ,"/tt/TestJava.java:11: verify: The prover cannot establish an assertion (Assert) in method mb",9
                 );
     }

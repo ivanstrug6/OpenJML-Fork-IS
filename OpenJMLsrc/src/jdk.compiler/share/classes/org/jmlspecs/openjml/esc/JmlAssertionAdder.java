@@ -3384,14 +3384,25 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 										doit = true;
 								}
 								if (doit) {
-									// JavaFileObject prevSource = log.useSource(clause.source());
+									// FinModel patch M: an invariant declared in another file is translated with
+									// that file as the log source, so diagnostics at positions inside the clause
+									// (warnings, internal errors) name the clause's own file, not the current one.
 									try {
 									    var cl = (JmlTypeClauseExpr)clause;
 										t = copy(cl); // FIXME - why copy the clause
 										addTraceableComment(t.expression, clause.toString());
-										JCExpression e = !rac || cl.racmethod == null || csym != basecsym
+										// FinModel patch M: the clause is translated with its own file as the log
+										// source (diagnostics at positions inside it); the resulting assume/assert is
+										// located at 'pos' in the current file, so the source is restored before that.
+										Object[] prevSource = useSourceOf(clause.source());
+										JCExpression e;
+										try {
+											e = !rac || cl.racmethod == null || csym != basecsym
 										                      ? convertJML(t.expression, treeutils.trueLit, isPost)
 										                      : treeutils.invMethodCall(currentEnv.currentReceiver, cl);
+										} finally {
+											restoreSource(prevSource);
+										}
 		                                addStat(comment(pos, (assume?"Assume":"Assert") + " invariant " + e, null));
 										if (assume)
 											addAssume(pos, invariantLabel, e, cpos, clause.sourcefile,
@@ -3405,7 +3416,6 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 										notImplemented(clause.clauseType.keyword() + " clause containing ", e,
 												clause.source());
 									} finally {
-										// log.useSource(prevSource);
 									}
 								}
 							}
@@ -4407,7 +4417,13 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 								|| (clause.modifiers.flags & Flags.ENUM) == 0) {
 							addStat(comment(clause));
 							JmlTypeClauseExpr t = (JmlTypeClauseExpr) clause;
-							JCExpression e = convertJML(t.expression);
+							Object[] prevSource = useSourceOf(clause.source()); // FinModel patch M
+							JCExpression e;
+							try {
+								e = convertJML(t.expression);
+							} finally {
+								restoreSource(prevSource);
+							}
 							addAssume(cpos, Label.AXIOM, e, cpos, clause.sourcefile);
 				            addFeasibilityCheck(clause, currentStatements, Strings.feas_methodaxioms, "after axiom " + t.expression);
 						}
@@ -4596,7 +4612,12 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 					if (alreadyDiscoveredFields.add(sym) && sym.owner instanceof ClassSymbol) {
 						JCFieldAccess newfa = treeutils.makeSelect(def.pos, treeutils.makeType(def.pos, sym.owner.type),
 								sym);
-						addFinalStaticField(newfa);
+						Object[] prevSource = useSourceOf(decl.sourcefile); // FinModel patch M
+						try {
+							addFinalStaticField(newfa);
+						} finally {
+							restoreSource(prevSource);
+						}
 					}
 //                    JCExpression e = vd.init;
 //                    if (e != null) {
@@ -4639,6 +4660,18 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 
 	}
 
+	/** FinModel patch M: makes 'src' the log source if it differs from the current one, so diagnostics
+	 *  at positions in a clause or declaration from another file (e.g. a static invariant of a class
+	 *  reached from the method being translated) name that file. Returns the token for restoreSource. */
+	protected Object[] useSourceOf(JavaFileObject src) {
+		if (src == null || src == log.currentSourceFile()) return null;
+		return new Object[] { log.useSource(src) };
+	}
+
+	protected void restoreSource(Object[] token) {
+		if (token != null) log.useSource((JavaFileObject) token[0]);
+	}
+
 	protected void assumeStaticInvariants(ClassSymbol csym) {
 		JmlSpecs.TypeSpecs tspecs = specs.getAttrSpecs(csym);
 		if (tspecs == null) {
@@ -4655,8 +4688,15 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 					continue;
 				if (!utils.jmlvisible(null, methodDecl.sym.owner, csym, t.modifiers.flags, methodDecl.mods.flags))
 					continue;
-				addAssume(methodDecl, Label.INVARIANT_ENTRANCE_ASSUMED,
-						convertJML(((JmlTypeClauseExpr) t).expression),
+				// FinModel patch M: translate the clause with its own file as the log source
+				Object[] prevSource = useSourceOf(t.source());
+				JCExpression e;
+				try {
+					e = convertJML(((JmlTypeClauseExpr) t).expression);
+				} finally {
+					restoreSource(prevSource);
+				}
+				addAssume(methodDecl, Label.INVARIANT_ENTRANCE_ASSUMED, e,
 						t, t.source(), utils.qualifiedMethodSig(methodDecl.sym));
 	            addFeasibilityCheck(t, currentStatements, Strings.feas_methodaxioms, "after static invariant: " + t);
 			}
@@ -15640,6 +15680,11 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 						call.type = call.sym.type;
 						rhs = M.at(that).Apply(null, call, List.<JCExpression>of(rhs)).setType(syms.stringType);
 					}
+					// FinModel patch O (ISSUE-1467): Java's + converts a null String operand to "null";
+					// the model concat(s1,s2) requires both non-null, so a nullable operand used to
+					// produce a spurious precondition failure.
+					if (lhs == that.getLeftOperand()) lhs = nullToNullString(lhs);
+					if (rhs == that.getRightOperand()) rhs = nullToNullString(rhs);
 					JCFieldAccess call = M.Select(id, names.fromString("concat"));
 					call.sym = s;
 					call.type = s.type;
@@ -16218,8 +16263,9 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			switch (b) {
 			case BYTE:
 				return 0;
-			case INT:
 			case CHAR:
+				return 1; // FinModel patch L: negative byte values do not fit in char
+			case INT:
 			case SHORT:
 			case FLOAT:
 			case DOUBLE:
@@ -16250,6 +16296,22 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			case INT:
 			case SHORT:
 				return 1;
+			case FLOAT:
+			case DOUBLE:
+				return -1;
+			}
+			break;
+		case CHAR:
+			// FinModel patch L: char was missing, so every conversion from char (e.g. (int)c)
+			// was treated as a no-op and the converted tree kept its char-typed operand.
+			switch (b) {
+			case CHAR:
+				return 0;
+			case BYTE:
+			case SHORT:
+				return 1; // char values above 32767 do not fit
+			case INT:
+			case LONG:
 			case FLOAT:
 			case DOUBLE:
 				return -1;
@@ -16538,12 +16600,19 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 //                error(pos, "jml.message", )
             }
         }
+        // FinModel patch L: the bounds are converted to the expression's type, which is lossy when a
+        // bound lies outside that type's own range (e.g. char vs byte's -128 became 65408). Such a
+        // bound is implied by the expression's type, so its check is omitted.
+        TypeTag etag = expr.type == null ? null : expr.type.getTag();
+        boolean integral = etag == TypeTag.BYTE || etag == TypeTag.SHORT || etag == TypeTag.CHAR || etag == TypeTag.INT || etag == TypeTag.LONG;
+        boolean needMax = !integral || hival <= maxValue(pos, etag);
+        boolean needMin = !integral || loval >= minValue(pos, etag);
         if (isAssert) {
-            addCheck(pos, Label.ARITHMETIC_CAST_RANGE, emax);
-            addCheck(pos, Label.ARITHMETIC_CAST_RANGE, emin);
+            if (needMax) addCheck(pos, Label.ARITHMETIC_CAST_RANGE, emax);
+            if (needMin) addCheck(pos, Label.ARITHMETIC_CAST_RANGE, emin);
         } else {
-            addAssume(pos, Label.ARITHMETIC_CAST_RANGE, emax);
-            addAssume(pos, Label.ARITHMETIC_CAST_RANGE, emin);
+            if (needMax) addAssume(pos, Label.ARITHMETIC_CAST_RANGE, emax);
+            if (needMin) addAssume(pos, Label.ARITHMETIC_CAST_RANGE, emin);
         }
     }
 
@@ -16559,6 +16628,12 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		JCTree newTypeTree = that.getType(); // the tree, not the Type
 		newTypeTree.type = convertType(newTypeTree.type);
 		JCExpression newexpr = addConversion(that, newTypeTree.type, arg, true, true);
+		if (newexpr == arg && arg.type != null && arg.type.isPrimitive() && newTypeTree.type.isPrimitive()
+				&& arg.type.getTag() != newTypeTree.type.getTag()) {
+			// FinModel patch L: never retype the (shared) operand of a primitive conversion in place --
+			// e.g. a char temporary retyped as int left its declaration char-typed (SMT sort mismatch).
+			newexpr = M.at(that).TypeCast(newTypeTree.type, arg);
+		}
 		newexpr.type = newTypeTree.type; // FIXME - why does the line above not do this, e.g. if the cast is (T[])
 		//System.out.println("TYPECAST-NE " + newexpr + " " + newexpr.type + " " + arg.type + " " + newTypeTree + " " + newTypeTree.type);
 
@@ -24882,6 +24957,22 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			addStat(bl);
 		}
 		return null;
+	}
+
+	/** FinModel patch O: for a String-typed variable or field operand of string concatenation that
+	 *  may be null, returns (e == null ? "null" : e) -- Java's string conversion of a null
+	 *  reference. The operand is a side-effect-free variable reference, so evaluating it twice is
+	 *  harmless. Other operands are returned unchanged. */
+	protected JCExpression nullToNullString(JCExpression e) {
+		JCExpression ee = e;
+		while (ee instanceof JCParens p) ee = p.expr;
+		Symbol sym = ee instanceof JCIdent id ? id.sym : ee instanceof JCFieldAccess fa ? fa.sym : null;
+		if (!(sym instanceof VarSymbol vsym) || specs.isNonNull(vsym)) return e;
+		JCExpression cond = treeutils.makeEqNull(e.pos, copy(e));
+		JCExpression lit = treeutils.makeStringLiteral(e.pos, "null");
+		JCConditional c = M.at(e.pos).Conditional(cond, lit, copy(e));
+		c.type = syms.stringType;
+		return c;
 	}
 
 	public boolean isHeapIndependent(MethodSymbol msym) {

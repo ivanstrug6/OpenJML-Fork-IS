@@ -277,6 +277,14 @@ public class QuantifiedExpressions extends JmlExtension {
     // but we can't have both of them being registered
     public static final String qmaxID = "\\max";
     public static       IJmlClauseKind qmaxKind = new QuantifiedExpression(qmaxID);
+    static {
+        // FinModel patch Q: both qmaxKind and MiscExpressions.bsmaxKind register themselves under
+        // "\\max", so which one the parser saw depended on class-initialization order (i.e. on the
+        // order extension classes were found on disk). bsmaxKind must own the keyword: it parses
+        // \\max(...) itself and delegates the quantified form \\max T x; ... to qmaxKind.
+        IJmlClauseKind bsmax = MiscExpressions.bsmaxKind;
+        if (bsmax != null) org.jmlspecs.openjml.Extensions.synonym(qmaxID, bsmax);
+    }
     public static final String qminID = "\\min";
     public static final IJmlClauseKind qminKind = new QuantifiedExpression(qminID);
     public static final String letID = "\\let";
