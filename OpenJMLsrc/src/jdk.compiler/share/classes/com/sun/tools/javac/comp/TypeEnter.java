@@ -1144,6 +1144,8 @@ public class TypeEnter implements Completer {
             memberEnter.memberEnter(defsToEnter, env);
             if (isRecord) {
                 addRecordMembersIfNeeded(tree, env);
+                // OPENJML - FinModel patch C4 (ISSUE-1667): bind .jml specs of the implicit accessors just created
+                if (memberEnter instanceof JmlMemberEnter jme) jme.bindRecordAccessorSpecs(tree, env);
             }
             if (tree.sym.isAnnotationType()) {
                 Assert.check(tree.sym.isCompleted());
