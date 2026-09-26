@@ -242,6 +242,11 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
         	return;
     	}
     	//System.out.println("MATCHING MEMBERS "+ cd.name);
+    	// FinModel patch C4 (ISSUE-2281/2203/1690): for a record, TypeEnter.RecordPhase has already entered
+    	// the record component fields and the explicit constructors, so they are NOT in 'trees' (see
+    	// TypeEnter.MembersPhase.finishClass). Match .jml declarations against (and give default specs to)
+    	// all members of the Java record declaration, not just the late-entered subset.
+    	final List<? extends JCTree> javaDefs = sourceDecl.sym.isRecord() ? sourceDecl.defs : trees;
     	var revisedDefs = new ListBuffer<JCTree>();
 		boolean hasStaticInit = false;
 		boolean hasInstanceInit = false;
@@ -250,7 +255,7 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
     		//System.out.println("MATCHING " + t);
     		boolean ok = true;
     		if (t instanceof JmlVariableDecl specVarDecl) {
-    			var match = trees.stream().filter(tt -> (tt instanceof JmlVariableDecl vd && vd.name == specVarDecl.name)).findFirst();
+    			var match = javaDefs.stream().filter(tt -> (tt instanceof JmlVariableDecl vd && vd.name == specVarDecl.name)).findFirst();
     			if (utils.isJML(specVarDecl)) {
     				// Specification field is ghost or model
     				if (match.isEmpty()) {
@@ -271,12 +276,9 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
     			} else {
     				// Specification field is a Java declaration (in the .jml file)
     				if (match.isEmpty()) {
-    				    if (sourceDecl.sym.isRecord()) {
-    				    System.out.println("NO MATCH " + sourceDecl.sym + " " + sourceDecl.sym.isRecord() + " " + t + " " + sourceDecl);
-    				    } else {
-    				        // Error: but there is no match for it
-    				        utils.error(specVarDecl.sourcefile, specVarDecl, "jml.message", "There is no field to match this Java declaration in the specification file: " + sourceDecl.sym.flatname + "." + specVarDecl.name);
-    				    }
+    				    // FinModel patch C4: record component fields are now matched (javaDefs above), so an
+    				    // unmatched field is a genuine mismatch for records too (was a debug println "NO MATCH")
+    				    utils.error(specVarDecl.sourcefile, specVarDecl, "jml.message", "There is no field to match this Java declaration in the specification file: " + sourceDecl.sym.flatname + "." + specVarDecl.name);
     				} else {
     				    // There is a matching declaration in the .java file
 						JmlVariableDecl javaVarDecl = (JmlVariableDecl)match.get();
@@ -341,6 +343,15 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
                             boolean matchesParameter = false;
                             for (var p: specsDecl.defs) if (p instanceof JCVariableDecl vp && vp.name == specMethodDecl.name) matchesParameter = true;
                             if (!matchesParameter) utils.error(specMethodDecl.sourcefile, specMethodDecl, "jml.message", "There is no method to match this Java declaration in the specification file: " + sourceDecl.sym + "." + specMethodDecl.sym);
+                            else if (specMethodDecl.params.isEmpty() && specMethodDecl.typarams.isEmpty()) {
+                                // FinModel patch C4 (ISSUE-1667): a spec for an implicit record accessor. The accessor
+                                // is only created by TypeEnter after this method returns, so defer the binding to
+                                // bindRecordAccessorSpecs (previously the spec was silently dropped: vacuous).
+                                pendingAccessorSpecs.computeIfAbsent(sourceDecl.sym, k -> new java.util.ArrayList<>()).add(specMethodDecl);
+                                ok = true;
+                            } else {
+                                utils.error(specMethodDecl.sourcefile, specMethodDecl, "jml.message", "There is no method to match this Java declaration in the specification file: " + sourceDecl.sym + "." + specMethodDecl.sym);
+                            }
                         }
     				} else {
     				    boolean print = false;//specMethodDecl.name.toString().equals("of");
@@ -412,7 +423,7 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
     	specsDecl.defs = revisedDefs.toList();
     	
     	// Now check for any unmatched Java declarations
-    	for (var t: trees) {
+    	for (var t: javaDefs) { // FinModel patch C4: javaDefs includes record fields and explicit record constructors
     		if (t instanceof JmlVariableDecl vd) {
     			if (vd.specsDecl == null) {
     				vd.specsDecl = vd;
@@ -448,6 +459,81 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
         }
     }
     
+    /** FinModel patch C4 (ISSUE-1667): .jml specifications of implicit record accessors, awaiting
+     *  bindRecordAccessorSpecs (called from TypeEnter.MembersPhase.finishClass after the accessors exist) */
+    protected java.util.Map<ClassSymbol, java.util.List<JmlMethodDecl>> pendingAccessorSpecs = new java.util.HashMap<>();
+
+    /** FinModel patch C4 (ISSUE-1667): binds each .jml specification of an implicit record accessor.
+     *  The accessor is made explicit (public T c() { return this.c; }) so that its specification is
+     *  verified like any other method's, rather than being dropped (vacuous) or assumed unproved (unsound);
+     *  the implicit meaning of the accessor (\result == c) is added as a further specification case so that
+     *  callers keep knowing it.
+     */
+    public void bindRecordAccessorSpecs(JCClassDecl tree, Env<AttrContext> env) {
+        var pending = pendingAccessorSpecs.remove(tree.sym);
+        if (pending == null) return;
+        JmlClassDecl sourceDecl = (JmlClassDecl)tree;
+        var prev = log.useSource(sourceDecl.specsDecl.source());
+        try {
+            for (JmlMethodDecl specMethodDecl: pending) {
+                var rc = tree.sym.getRecordComponents().stream().filter(r -> r.name == specMethodDecl.name).findFirst().orElse(null);
+                MethodSymbol acc = rc == null ? null : rc.accessor;
+                JCVariableDecl field = com.sun.tools.javac.tree.TreeInfo.recordFields(tree).stream().filter(f -> f.name == specMethodDecl.name).findFirst().orElse(null);
+                if (acc == null || field == null || (acc.flags_field & Flags.GENERATED_MEMBER) == 0) {
+                    utils.error(specMethodDecl.sourcefile, specMethodDecl, "jml.message", "There is no method to match this Java declaration in the specification file: " + tree.sym + "." + specMethodDecl.name + "()");
+                    continue;
+                }
+                boolean prevcu = resolve.setInJMLCU(specMethodDecl.isInJMLCU());
+                Type specResultType = specMethodDecl.restype == null ? null : attr.attribType(specMethodDecl.restype, env);
+                resolve.setInJMLCU(prevcu);
+                if (specResultType == null || !types.isSameType(acc.getReturnType(), specResultType)) {
+                    utils.error(specMethodDecl.sourcefile, specMethodDecl.restype == null ? specMethodDecl : specMethodDecl.restype, "jml.message",
+                        "The result type of method " + tree.sym + "." + acc + " in the specification differs from the type in the source/binary: " + specResultType + " vs. " + acc.getReturnType());
+                    continue;
+                }
+                // Make the accessor explicit: without GENERATED_MEMBER, javac's Lower does not generate
+                // a second one, and ESC checks this one against its specification
+                acc.flags_field &= ~Flags.GENERATED_MEMBER;
+                int p = specMethodDecl.pos;
+                var prevSource = log.useSource(sourceDecl.source());
+                JmlMethodDecl javaDecl;
+                try {
+                    javaDecl = (JmlMethodDecl)jmlF.at(field.pos).MethodDef(acc,
+                        jmlF.Block(0, List.of(jmlF.Return(jmlF.Select(jmlF.Ident(names._this), field.name)))));
+                } finally {
+                    log.useSource(prevSource);
+                }
+                rc.accessorMeth = javaDecl;
+                sourceDecl.defs = sourceDecl.defs.append(javaDecl);
+                // The implicit meaning of the accessor, as an additional specification case
+                var ens = jmlF.at(p).JmlMethodClauseExpr(org.jmlspecs.openjml.ext.MethodExprClauseExtensions.ensuresID,
+                    org.jmlspecs.openjml.ext.MethodExprClauseExtensions.ensuresClauseKind,
+                    jmlF.at(p).Binary(JCTree.Tag.EQ, jmlF.at(p).JmlSingleton(org.jmlspecs.openjml.ext.SingletonExpressions.resultKind), jmlF.at(p).Ident(field.name)));
+                ens.sourcefile = specMethodDecl.sourcefile;
+                if (specMethodDecl.methodSpecs == null) {
+                    specMethodDecl.methodSpecs = jmlF.at(p).JmlMethodSpecs(List.nil());
+                }
+                var existing = specMethodDecl.methodSpecs.cases;
+                var sc = jmlF.at(p).JmlSpecificationCase(jmlF.at(p).Modifiers(Flags.PUBLIC), false,
+                    org.jmlspecs.openjml.ext.MethodSimpleClauseExtensions.normalBehaviorClause,
+                    existing.isEmpty() ? null : org.jmlspecs.openjml.ext.MethodSimpleClauseExtensions.alsoClause,
+                    List.of(ens), null);
+                sc.sourcefile = specMethodDecl.sourcefile;
+                specMethodDecl.methodSpecs.cases = existing.append(sc);
+                // Now bind, as for a matched explicit method
+                javaDecl.specsDecl = specMethodDecl;
+                specMethodDecl.sym = acc;
+                specMethodDecl.type = acc.type;
+                var msp = new JmlSpecs.MethodSpecs(specMethodDecl);
+                msp.javaDecl = javaDecl;
+                msp.javaEnv = msp.specsEnv = env;
+                specs.putSpecs(acc, msp);
+            }
+        } finally {
+            log.useSource(prev);
+        }
+    }
+
     public boolean enterJML = true; // Set to false to just create the sym and type, but not enter or check duplicates
     
     /**  FIXME: still true, useful?:Returns true if there is a duplicate, whether or not it was warned about */

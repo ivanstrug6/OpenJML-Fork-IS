@@ -813,7 +813,7 @@ public class JmlEnter extends Enter {
 			JmlSpecs.instance(context).putSpecs(csym, tspecs);
 			// Do all nested classes, recursively
 			specDecl.defs = specsListEnter(csym, specDecl.defs, localEnv);
-			if (csym.isRecord()) {
+			if (csym.isRecord() && debugEnter) { // FinModel patch C4: was unconditional debug output
 			    System.out.println("ENTERING RECORD-A " + csym);
 			}
 		} catch (Exception e) {
@@ -845,7 +845,7 @@ public class JmlEnter extends Enter {
 			    	//TypeEnter.instance(context).new MembersPhase().enterThisAndSuper(cs, JmlSpecs.instance(context).getLoadedSpecs(cs).specsEnv);
                     //specsMemberEnter(specDecl); // Enter class specDecl non-recursively
                     //specsMembersEnter(cs, specDecl.defs); // Enter any classes in specDecl
-			          if (cs.isRecord()) {
+			          if (cs.isRecord() && debugEnter) { // FinModel patch C4: was unconditional debug output
 			                System.out.println("ENTERING RECORD-A " + cs);
 			            }
 			    } else {

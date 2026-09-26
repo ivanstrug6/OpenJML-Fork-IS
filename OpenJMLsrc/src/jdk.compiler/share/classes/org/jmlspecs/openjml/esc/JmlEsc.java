@@ -222,8 +222,14 @@ public class JmlEsc extends JmlTreeScanner {
         }
 
         // We do prove generated constructors in general, because they include all the initialization
+        // FinModel patch C4 (ISSUE-1584/1667 for records): an implicit record member whose specification is
+        // written in a .jml separate declaration IS checked -- otherwise that specification would be assumed
+        // at call sites without ever being proved.
+        boolean hasSeparateSpecs = decl instanceof JmlMethodDecl jmd && jmd.specsDecl != null && jmd.specsDecl != jmd;
+        if (!hasSeparateSpecs) {
         if ((decl.sym.flags() & Flags.GENERATEDCONSTR) != 0 && (decl.sym.flags() & Flags.RECORD) != 0) return; // Don't do generated code (particularly record constructors)
         if ((decl.sym.flags() & Flags.GENERATED_MEMBER) != 0) return; // Don't do generated code (particularly record constructors)
+        }
         if (!(decl instanceof JmlMethodDecl)) {
             utils.warning("jml.internal","Unexpected non-JmlMethodDecl in JmlEsc - not checking " + utils.abbrevMethodSig(decl.sym));
             return;
