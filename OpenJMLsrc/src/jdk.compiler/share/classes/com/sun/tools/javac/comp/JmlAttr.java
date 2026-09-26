@@ -9080,7 +9080,16 @@ public class JmlAttr extends Attr implements IJmlVisitor {
 
         public void visitBlock(JmlBlock tree)                          { visitTree(tree); }
         public void visitImport(JCImport tree)                         { visitTree(tree); }
-        public void visitNewClass(JCNewClass tree)                     { visitTree(tree); }
+        // FinModel patch C1b: a diamond instance creation ('new C<>(...)') in argument position is a
+        // poly expression; it must go through ArgumentAttr.visitNewClass so that it becomes a
+        // ResolvedConstructorType whose type arguments are inferred against the formal parameter
+        // (as in stock javac). Delegating it to Attr as a standalone expression left C<E> uninferred
+        // and produced false 'C<E> cannot be converted to ...' / 'incompatible bounds' errors.
+        // Non-diamond instance creations keep the previous (standalone) handling.
+        public void visitNewClass(JCNewClass tree) {
+            if (TreeInfo.isDiamond(tree)) super.visitNewClass(tree);
+            else visitTree(tree);
+        }
         public void visitJmlBinary(JmlBinary tree)                     { visitTree(tree); }
         public void visitJmlChained(JmlChained tree)                   { visitTree(tree); }
         public void visitJmlChoose(JmlChoose tree)                     { visitTree(tree); }
