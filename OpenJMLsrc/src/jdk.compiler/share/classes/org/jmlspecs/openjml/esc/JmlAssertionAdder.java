@@ -939,12 +939,25 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 
 		typevarMapping = typemapping(pclassDecl.type, null, null, null);
 
+		// FinModel patch C3: remember the block-stack depth so that an exception thrown part-way
+		// through translating this method cannot leave the stack corrupted for later methods
+		int savedStatementStackSize = statementStack.size();
+		String savedBlockStackFault = blockStackFault;
+		blockStackFault = null;
+		String savedFirstCallTranslationException = firstCallTranslationException;
+		firstCallTranslationException = null;
+		methodBodyTranslationDepth++;
 		boolean undoLabels = false; // TODO - explain why this is used
 		try {
 			topEnclosingMethod = enclosingMethod = pmethodDecl.sym;
 			topEnclosingClass = enclosingClass = (ClassSymbol)pmethodDecl.sym.owner;
 			if (utils.hasModifier(pmethodDecl.mods, Modifiers.MODEL) && (pmethodDecl.mods.flags & Flags.SYNTHETIC) != 0) {
-				return convertMethodBodyNoInitModel(pmethodDecl, pclassDecl);
+				JCBlock modelBody = convertMethodBodyNoInitModel(pmethodDecl, pclassDecl);
+				if (blockStackFault != null && esc) { // FinModel patch C3: see below
+					recordTranslationFailure(pmethodDecl, "inconsistent translation state (" + blockStackFault + ")", null);
+					return null;
+				}
+				return modelBody;
 			}
 			feasibilityCheckCount = 0;
 			this.methodDecl = pmethodDecl;
@@ -1401,12 +1414,25 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			}
 
 			initialStatements.add(outerTryStatement);
+			if (blockStackFault != null && esc) {
+				// FinModel patch C3: the block stack became inconsistent while translating this
+				// method, so the translation cannot be trusted; reject it (reported per-method).
+				recordTranslationFailure(pmethodDecl, "inconsistent translation state (" + blockStackFault + ")", null);
+				return null;
+			}
 			return M.at(methodDecl).Block(0, initialStatements.toList());
 		} catch (JmlNotImplementedException e) {
 			throw e;
 		} catch (JmlInternalAbort e) {
 			return null;
-		} catch (Exception e) {
+		} catch (Exception | StackOverflowError e) { // FinModel patch C3: also StackOverflowError
+			if (esc) {
+				// FinModel patch C3: in ESC, a failure to translate one method is reported against
+				// that method when it is proved (MethodProverSMT), rather than as a compile error now,
+				// which made JmlEsc.check abandon every method of the class.
+				recordTranslationFailure(pmethodDecl, e.toString(), e);
+				return null;
+			}
 			String message = e.getMessage();
 			if (message == null)
 				message = "Internal exception: " + e.getClass();
@@ -1416,6 +1442,11 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			Log.instance(context).error("jml.internal.notsobad", message);
 			return null;
 		} finally {
+			// FinModel patch C3: discard block-stack frames abandoned by an exception
+			while (statementStack.size() > savedStatementStackSize) statementStack.removeFirst();
+			blockStackFault = savedBlockStackFault;
+			firstCallTranslationException = savedFirstCallTranslationException;
+			methodBodyTranslationDepth--;
 			if (continuation != Continuation.CONTINUE) {
 			    //System.out.println("ADDING FINAL HALT");
 				addStat(M.at(methodDecl).JmlStatementExpr(ReachableStatement.haltID,
@@ -1962,30 +1993,36 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 	 * Translates a block, but without adding the block to the statement list; any
 	 * side-effect statements are placed within the new block.
 	 */
-	@SuppressWarnings("finally")
 	protected /* @nullable */ JCBlock convertBlock(/* @nullable */ JCBlock block) {
 		if (block == null)
 			return null;
 		ListBuffer<JCStatement> check = pushBlock();
 		try {
 			scan(block.stats);
-		} finally {
-			return popBlock(block.flags, block, check);
+		} catch (RuntimeException | Error e) {
+			// FinModel patch C3: previously 'return popBlock(...)' in a finally clause silently
+			// swallowed any exception thrown while translating the block (dropping the rest of the
+			// block's statements). Restore the block stack and let the exception propagate to the
+			// per-method handler in convertMethodBodyNoInit.
+			unwindBlocksTo(check);
+			throw e;
 		}
+		return popBlock(block.flags, block, check);
 	}
 
 	/**
 	 * Translates a list of statements, returning a block containing the
 	 * translations
 	 */
-	@SuppressWarnings("finally")
 	protected JCBlock convertIntoBlock(DiagnosticPosition pos, List<JCStatement> stats) {
 		ListBuffer<JCStatement> check = pushBlock();
 		try {
 			scan(stats);
-		} finally {
-			return popBlock(pos, check);
+		} catch (RuntimeException | Error e) {
+			unwindBlocksTo(check); // FinModel patch C3: do not swallow the exception (was 'return' in finally)
+			throw e;
 		}
+		return popBlock(pos, check);
 	}
 
 	/**
@@ -1993,7 +2030,6 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 	 * (including any statements it spawns); if the statement is a block, then the
 	 * block's statements are translated, so there is not an excess nested block.
 	 */
-	@SuppressWarnings("finally")
 	protected JCBlock convertIntoBlock(DiagnosticPosition pos, JCStatement stat) {
 		ListBuffer<JCStatement> check = pushBlock();
 		try {
@@ -2001,17 +2037,11 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 				scan(((JCBlock) stat).stats);
 			else
 				scan(stat);
-		} catch (Exception e) {
-			e.printStackTrace(System.out);
+		} catch (RuntimeException | Error e) {
+			unwindBlocksTo(check); // FinModel patch C3: do not swallow the exception (was 'return' in finally)
 			throw e;
-		} finally {
-		    try {
-		        return popBlock(pos, check);
-		    } catch (RuntimeException ee) {
-			    System.out.println("STAT CAUSING PROBLEM " + stat);
-			    throw ee;
-			}
 		}
+		return popBlock(pos, check);
 	}
 
 	/**
@@ -2053,7 +2083,14 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		else
 			b = M.at(0).Block(flags, currentStatements.toList());
 		currentStatements = statementStack.removeFirst();
-		if (check != null && check != currentStatements) {
+		if (check != null && check != currentStatements && unwindBlocksTo(check)) {
+			// FinModel patch C3: an inner pushBlock was never popped -- typically because an
+			// exception unwound through it (a finally clause popping this block runs during that
+			// unwinding). Throwing here replaced the original exception with an uninformative
+			// MISMATCHED BLOCKS and aborted ESC of the whole class. The stack has been repaired;
+			// the fault is recorded and this method's translation is rejected (never proved).
+			noteBlockStackFault("MISMATCHED BLOCKS");
+		} else if (check != null && check != currentStatements) {
 			log.error("jml.internal", "MISMATCHED BLOCKS");
 			var e = new RuntimeException("MISMATCHED BLOCKS");
 			e.printStackTrace(System.out);
@@ -2079,10 +2116,60 @@ public class JmlAssertionAdder extends JmlTreeScanner {
     }
     protected boolean checkBlockX(LinkedList<ListBuffer<JCStatement>> temp, String msg) {
 	    if (!checkBlock(temp)) {
-            log.error("jml.internal", "MISMATCHED BLOCKS-CBX " + msg);
-            new RuntimeException("MISMATCHED BLOCKS-CBX").printStackTrace(System.out);
+	        // FinModel patch C3: record the inconsistency against the method being translated
+	        // (its translation is then rejected with a per-method diagnostic) instead of logging
+	        // a class-aborting catastrophic error; the usual cause is an exception unwinding
+	        // through an applyHelper finally clause.
+	        noteBlockStackFault("MISMATCHED BLOCKS-CBX " + msg);
             return false;
 	    }
+	    return true;
+	}
+
+	/** FinModel patch C3: first block-stack inconsistency seen while translating the current method (null if none) */
+	protected String blockStackFault = null;
+
+	/** FinModel patch C3: methods whose ESC translation failed, with the reason; reported per-method by MethodProverSMT */
+	public final Map<JmlMethodDecl, String> translationFailures = new HashMap<>();
+
+	protected void recordTranslationFailure(JmlMethodDecl md, String reason, /*@ nullable */ Throwable e) {
+	    translationFailures.putIfAbsent(md, reason);
+	    if (e != null) org.jmlspecs.openjml.Utils.conditionalPrintStack("JMLAA-translation-failure " + md.sym, e);
+	}
+
+	/** FinModel patch C3: nesting depth of convertMethodBodyNoInit */
+	protected int methodBodyTranslationDepth = 0;
+
+	/** FinModel patch C3: first exception seen unwinding through applyHelper in the current method body;
+	 * used only to explain a block-stack inconsistency (the exception itself may have been handled) */
+	protected String firstCallTranslationException = null;
+
+	protected void noteTranslationException(Throwable e) {
+	    if (firstCallTranslationException == null) firstCallTranslationException = e.toString();
+	}
+
+	protected void noteBlockStackFault(String msg) {
+	    if (!esc || methodBodyTranslationDepth == 0) {
+	        // Not within an ESC method translation that will be rejected per-method: report as before
+	        log.error("jml.internal", msg);
+	        return;
+	    }
+	    if (blockStackFault == null) blockStackFault = msg
+	            + (firstCallTranslationException == null ? "" : ", after " + firstCallTranslationException);
+	}
+
+	/** FinModel patch C3: pops block-stack frames abandoned by an exception until currentStatements
+	 * is 'check' (the value returned by the matching pushBlock); returns false (changing nothing)
+	 * if 'check' is not on the stack. */
+	protected boolean unwindBlocksTo(ListBuffer<JCStatement> check) {
+	    if (currentStatements == check) return true;
+	    int k = 0;
+	    for (ListBuffer<JCStatement> b: statementStack) {
+	        if (b == check) break;
+	        k++;
+	    }
+	    if (k == statementStack.size()) return false;
+	    for (int i = 0; i <= k; i++) currentStatements = statementStack.removeFirst();
 	    return true;
 	}
 
@@ -5480,6 +5567,11 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		for (JCTree dd : cspecs.specDecl.defs) {
 			if (!(dd instanceof JCVariableDecl)) continue;
 			JCVariableDecl d = (JCVariableDecl) dd;
+			// FinModel patch C3: a field declaration in a .jml companion that was never matched
+			// to a source field (e.g. a record component redeclared in the .jml; JmlMemberEnter
+			// reports "NO MATCH") has no symbol. Skipping it only omits an assumption (sound);
+			// dereferencing it threw an NPE mid-block and corrupted the block stack (MISMATCHED BLOCKS-CBX).
+			if (d.sym == null) continue;
 			specs.getAttrSpecs(d.sym);
 			if (utils.isJavaOrJmlPrimitiveType(d.sym.type)) continue;
 			if (staticOnly && !utils.isJMLStatic(d.sym)) continue;
@@ -8426,6 +8518,7 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			for (JCTree tree : tspecs.specDecl.defs) {
 				if (tree instanceof JCVariableDecl) {
 					JCVariableDecl vd = (JCVariableDecl) tree;
+					if (vd.sym == null) continue; // FinModel patch C3: unmatched .jml field declaration has no symbol
 					if (isContainedIn(vd.sym, fa.sym)) {
 						if (list.stream().allMatch(f -> vd.sym != f.sym)) {
 							JCFieldAccess nfa = M.at(fa.pos).Select(fa.selected, vd.sym);
@@ -12573,11 +12666,15 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			if (print) System.out.println("APPLYHELPER-ZA " + calleeMethodSym.owner + " " + calleeMethodSym + " " + eresult);
 
 		} catch (Error e) {
-			log.error("jml.internal", e.toString()); // FIXME - improve error message
+			// FinModel patch C3: in ESC the Error (e.g. StackOverflowError) is reported per-method by
+			// convertMethodBodyNoInit/MethodProverSMT; a compile error here aborted the whole class
+			if (!esc) log.error("jml.internal", e.toString()); // FIXME - improve error message
 			Utils.conditionalPrintStack("JMLAA-Error", e);
+			noteTranslationException(e); // FinModel patch C3: keep the root cause
 			throw e;
 		} catch (Throwable e) {
 			Utils.conditionalPrintStack("JMLAA-Exception", e);
+			noteTranslationException(e); // FinModel patch C3: keep the root cause
 			throw e;
 		} finally {
 			checkBlockX(stack0);
