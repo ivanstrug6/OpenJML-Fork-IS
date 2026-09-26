@@ -445,4 +445,139 @@ public class escrecord extends EscBase {
                 """);
     }
 
+
+    // =======================================================================
+    //  FinModel patch C4 (ISSUE-2281/2203/2240/1667): records redeclared in a .jml companion
+    // =======================================================================
+
+    /** A record redeclared in a .jml, whose .java has a compact constructor that the .jml does not
+     *  redeclare, and a construction site. Pre-patch: debug "NO MATCH" lines for each component and
+     *  "NO SPECS FOR Rej(...)" (the explicit constructor got no specs), aborting ESC.
+     *  Post-patch: verifies with zero findings, using the .jml invariant and accessor spec. */
+    @Test
+    public void testRecordJmlCompanionCompactCtorNotRedeclared() {
+        addMockFile("$A/tt/A.jml", """
+                package tt;
+                public class A {
+                    public record Rej(String reason, String detail) {
+                        //@ public invariant reason != null && detail != null;
+                        //@ ensures \\result != null;
+                        //@ pure
+                        public String reason();
+                    }
+                    public static Rej rej(String a);
+                    public static String use(Rej r);
+                }
+                """);
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public record Rej(String reason, String detail) {
+                        public Rej {
+                            if (reason == null || detail == null) throw new IllegalArgumentException();
+                        }
+                    }
+                    public static Rej rej(String a) { return new Rej(a, "d"); }
+                    public static String use(Rej r) { String s = r.reason(); /*@ assert s != null; @*/ return s; }
+                }
+                """);
+    }
+
+    /** A .jml separate declaration of the canonical constructor of a record whose .java has a COMPACT
+     *  constructor. Pre-patch: "The parameter name has different modifiers in the .java and .jml files:
+     *  mandated" (one per parameter). Post-patch: binds; the precondition is enforced at the call site. */
+    @Test
+    public void testRecordJmlCompanionCompactCtorSpec() {
+        addMockFile("$A/tt/A.jml", """
+                package tt;
+                public class A {
+                    public record NameEntry(String name, int n) {
+                        //@ requires name != null && n >= 0;
+                        //@ pure
+                        public NameEntry(String name, int n);
+                    }
+                    public static NameEntry ok();
+                    public static NameEntry bad();
+                }
+                """);
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public record NameEntry(String name, int n) {
+                        public NameEntry {
+                            if (name == null || n < 0) throw new IllegalArgumentException();
+                        }
+                    }
+                    public static NameEntry ok() { return new NameEntry("a", 1); }
+                    public static NameEntry bad() { return new NameEntry(null, 1); }
+                }
+                """
+                ,"/tt/A.java:9: verify: The prover cannot establish an assertion (Precondition) in method bad",44
+                ,"/$A/tt/A.jml:6: verify: Associated declaration",16
+                // FIXME - the location of this conjunct report is not the requires clause (pre-existing, cosmetic)
+                ,"/$A/tt/A.jml:11: verify: Precondition conjunct is false: null != null",0
+                );
+    }
+
+    /** Specs in a .jml for the IMPLICIT canonical constructor and an IMPLICIT accessor are bound, used
+     *  by callers (together with the accessor's implicit \result == field), and proved: a false
+     *  constructor postcondition and a false accessor postcondition are both reported (ISSUE-1667;
+     *  pre-patch the accessor spec was silently dropped and the constructor spec never proved). */
+    @Test
+    public void testRecordJmlCompanionImplicitMembers() {
+        addMockFile("$A/tt/A.jml", """
+                package tt;
+                public class A {
+                    public record Rec(String name, int n) {
+                        //@ public invariant n >= 0;
+                        //@ requires n >= 0;
+                        //@ ensures this.n == n + 1;
+                        //@ pure
+                        public Rec(String name, int n);
+                        //@ ensures \\result < 0;
+                        //@ pure
+                        public int n();
+                    }
+                    public static int t();
+                }
+                """);
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public record Rec(String name, int n) {}
+                    public static int t() { Rec r = new Rec("a", 5); int k = r.n(); /*@ assert k == 5; @*/ return k; }
+                }
+                """
+                ,"/tt/A.java:3: verify: The prover cannot establish an assertion (Postcondition) in method Rec",12
+                ,"/$A/tt/A.jml:6: verify: Associated declaration",13
+                ,"/tt/A.java:3: verify: The prover cannot establish an assertion (Postcondition) in method n",40
+                ,"/$A/tt/A.jml:9: verify: Associated declaration",13
+                );
+    }
+
+    /** Records nested in a sealed interface, redeclared in a .jml without the (implicit) public modifier
+     *  (the WriteResult.NotWritten shape). Pre-patch: "NO MATCH" debug output and "matches a Java type with
+     *  different modifiers: public". Post-patch: verifies with zero findings. */
+    @Test
+    public void testRecordJmlCompanionInSealedInterface() {
+        addMockFile("$A/tt/W.jml", """
+                package tt;
+                public sealed interface W permits W.Ok, W.No {
+                    record Ok() implements W {}
+                    record No(String reason, String detail) implements W {
+                        /*@ pure @*/
+                        public String reason();
+                    }
+                }
+                """);
+        helpEsc("tt.W", """
+                package tt;
+                public sealed interface W permits W.Ok, W.No {
+                    record Ok() implements W {}
+                    record No(String reason, String detail) implements W {}
+                    static String m(No n) { return n.reason(); }
+                }
+                """);
+    }
+
 }
