@@ -5138,7 +5138,18 @@ public class JmlAttr extends Attr implements IJmlVisitor {
         super.visitConditional(that);
         // The following is primarily to handle cases like b ? 0 : bigint-expression
         // Note -- need to check both as expressions and declaration initializers
-        result = that.type = condType(List.of(that.truepart, that.falsepart), List.of(that.truepart.type, that.falsepart.type));
+        // FinModel patch C1: only recompute the type when a branch has a JML primitive type
+        // (\bigint, \real, ...). For ordinary Java conditionals super.visitConditional has already
+        // computed the correct type (condType for STANDALONE, the target type for POLY, plus
+        // constant folding and check()). Unconditionally re-running condType on a POLY conditional
+        // (e.g. in method-argument position, where the branches are attributed speculatively and
+        // may carry DEFERRED types) crashed with 'isSameType DEFERRED' / 'isSubtype DEFERRED'
+        // and also discarded the target-typed result that stock javac computes.
+        Type tt = that.truepart.type, ft = that.falsepart.type;
+        if (tt != null && ft != null && (jmltypes.isJmlType(tt) || jmltypes.isJmlType(ft))
+                && !tt.hasTag(TypeTag.DEFERRED) && !ft.hasTag(TypeTag.DEFERRED)) {
+            result = that.type = condType(List.of(that.truepart, that.falsepart), List.of(tt, ft));
+        }
 //                ;        var BIGINT = JmlPrimitiveTypes.bigintTypeKind.getType(context);
 //        var REAL = JmlPrimitiveTypes.realTypeKind.getType(context);
 //        if (that.truepart.type == BIGINT && jmltypes.isAnyIntegral(that.falsepart.type)) {
