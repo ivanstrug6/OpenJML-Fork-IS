@@ -2113,7 +2113,10 @@ public class JmlAttr extends Attr implements IJmlVisitor {
 					JmlVariableDecl jmlparam = (JmlVariableDecl) jmliter.next();
 					javaparam.specsDecl = jmlparam;
 					jmlparam.sym = javaparam.sym;
-					long diffs = (javaparam.mods.flags ^ jmlparam.mods.flags) & ~(Flags.COMPOUND|Flags.RECORD); // FIXME - why does the specs file not automatically get these modifiers
+					// FinModel patch C4 (ISSUE-2203/2240): MANDATED marks the implicit parameters of a record's compact
+					// canonical constructor; it is a javac-internal flag, not a user-writable modifier, so a .jml
+					// separate declaration of the canonical constructor must be allowed to bind to it.
+					long diffs = (javaparam.mods.flags ^ jmlparam.mods.flags) & ~(Flags.COMPOUND|Flags.RECORD|Flags.MANDATED); // FIXME - why does the specs file not automatically get these modifiers
 					if (diffs != 0) {
 						utils.errorAndAssociatedDeclaration(specMethodDecl.sourcefile, jmlparam.pos(),
 								javaMatch.sourcefile, javaparam.pos(), 
@@ -3109,6 +3112,11 @@ public class JmlAttr extends Attr implements IJmlVisitor {
             boolean isEnum = (javaFlags & Flags.ENUM) != 0;
             boolean isRecord = (javaFlags & Flags.RECORD) != 0;
             if (isEnum||isRecord) diffs &= ~Flags.FINAL;
+            // FinModel patch C4: member types of an interface (e.g. the records of a sealed interface) are
+            // implicitly public and static; javac adds those flags to the Java symbol but not to the .jml tree
+            if (symForFlags.owner != null && symForFlags.owner.kind == Kinds.Kind.TYP && symForFlags.owner.isInterface()) {
+                diffs &= ~(Flags.PUBLIC|Flags.STATIC);
+            }
             
             key = "jml.mismatched.modifiers";
         }
