@@ -734,4 +734,38 @@ public class escgeneric extends EscBase {
                 """
                 );
     }
+
+    /** FinModel patch C1 (ISSUE-442/1488/1593): conditionals (including nested ones) in
+     *  method-argument position are poly expressions attributed speculatively; they used to abort
+     *  with 'AssertionError: isSameType/isSubtype DEFERRED'. ESC must run and give the normal,
+     *  sound verdicts -- 'bad' is a negative control that must still fail. */
+    @Test
+    public void testPolyConditionalArgs() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.List;
+                public class TestJava {
+                  //@ ensures \\result == o;
+                  //@ pure
+                  static Object id(Object o) { return o; }
+                  //@ ensures \\result == l;
+                  //@ pure
+                  static List<String> idl(List<String> l) { return l; }
+                  //@ ensures \\result == (b ? x : y);
+                  public Object g(boolean b, Object x, Object y) { return id(b ? x : y); }
+                  //@ ensures \\result == x;
+                  public Object bad(boolean b, Object x, Object y) { return id(b ? x : y); }
+                  //@ requires c != null;
+                  //@ ensures \\result == c;
+                  public List<String> h(List<String> c) { return idl(c == null ? List.of() : c); }
+                  //@ requires a != null && b != null;
+                  //@ ensures \\result == (k == 0 ? a : k == 1 ? b : a);
+                  public List<String> n(int k, List<String> a, List<String> b) { return idl(k == 0 ? a : k == 1 ? b : a); }
+                }
+                """
+                ,"/tt/TestJava.java:13: verify: The prover cannot establish an assertion (Postcondition) in method bad",54
+                ,"/tt/TestJava.java:12: verify: Associated declaration",7
+                );
+    }
 }
