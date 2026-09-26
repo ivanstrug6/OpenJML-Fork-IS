@@ -244,12 +244,12 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
     /** A mapping from BasicBlock to the sym->incarnation map giving the map that
      * corresponds to the state at the exit of the BasicBlock.
      */
-    /*@non_null*/ final public Map<BasicBlock,VarMap> blockmaps = new HashMap<BasicBlock,VarMap>();
+    /*@non_null*/ final public Map<BasicBlock,VarMap> blockmaps = new java.util.LinkedHashMap<BasicBlock,VarMap>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
     
     /** A mapping from labels to the sym->incarnation map operative at the position
      * of the label.
      */
-    /*@non_null*/ final protected Map<Name,VarMap> labelmaps = new HashMap<Name,VarMap>();
+    /*@non_null*/ final protected Map<Name,VarMap> labelmaps = new java.util.LinkedHashMap<Name,VarMap>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
         
     /** Contains names for which a declaration has been issued. */
     final protected Set<Name> isDefined = new HashSet<Name>();
@@ -330,7 +330,7 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
         this.bimap.clear();
         this.pathmap.clear();
         this.heapVar = treeutils.makeIdent(0,assertionAdder.heapSym);
-        this.methodsSeen = new HashSet<Symbol>();
+        this.methodsSeen = new java.util.LinkedHashSet<Symbol>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
         this.continuation = Continuation.CONTINUE;
         this.utilsClass = assertionAdder.utilsClass;
         // currentMap is set when starting a block
@@ -823,6 +823,21 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
             }
             //combined.everythingSAversion = maxe;
             for (VarSymbol sym: combined.keySet()) {
+                // FinModel patch T7: fast path - if every preceding map holds the very same entry for sym
+                // (the common case: the variable is not assigned on any incoming path), both branches
+                // below reduce to copying that entry (no DSA assumption, no side effects).
+                {
+                    VarEntry e0 = null;
+                    for (VarMap m: all) {
+                        VarEntry e = m.map.get(sym);
+                        if (e == null || (e0 != null && e != e0)) { e0 = null; break; }
+                        e0 = e;
+                    }
+                    if (e0 != null && e0.name != null && e0.version != null && e0.version >= 0) {
+                        newMap.map.put(sym, e0);
+                        continue;
+                    }
+                }
                 if (sym.owner instanceof Symbol.ClassSymbol) {
                     // If the symbol is owned by a class, then it is implicitly part of each VarMap,
                     // even if it is not explicitly listed.
@@ -1796,7 +1811,7 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
            }
        }
 
-       Map<MethodSymbol,List<BasicProgram.BasicBlock.MethodInfo>> myStartMap = new HashMap<>();
+       Map<MethodSymbol,List<BasicProgram.BasicBlock.MethodInfo>> myStartMap = new java.util.LinkedHashMap<>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
        yy: if (!heapAssignFound) {
            // Combine information from preceders
            for (BasicBlock bll: bl.preceders) {
@@ -2290,7 +2305,7 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
     @Override public void visitMethodDef(JCMethodDecl that)        { shouldNotBeCalled(that); }
     
     
-    final protected Map<Symbol,JCVariableDecl> localVars = new HashMap<>();
+    final protected Map<Symbol,JCVariableDecl> localVars = new java.util.LinkedHashMap<>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
     
     @Override public void visitJmlQuantifiedExpr(JmlQuantifiedExpr that) { 
         for (JCVariableDecl d: that.decls) {
@@ -2426,31 +2441,44 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
      * been havoced.
      */
     // The class is intentionally not static - so it can use encodedName
+    /** FinModel patch T7: an immutable (name, version) pair; VarMap entries are replaced, never mutated,
+     * so maps can share them when copied. */
+    static final class VarEntry {
+        final /*@Nullable*/ Name name;       // the value formerly held in mapname
+        final /*@Nullable*/ Long version;    // the value formerly held in mapSAVersion (VarSymbol) or maptypeSAVersion (TypeSymbol)
+        VarEntry(Name name, Long version) { this.name = name; this.version = version; }
+    }
+
     public class VarMap {
         // The maps allow VarSymbol or TypeSymbol (for TypeVar)
-        private Map<VarSymbol,Long> mapSAVersion = new HashMap<VarSymbol,Long>();
-        private Map<TypeSymbol,Long> maptypeSAVersion = new HashMap<TypeSymbol,Long>();
-        private Map<Symbol,Name> mapname = new HashMap<Symbol,Name>();
-        
+        // FinModel patch T7: the former three maps (mapSAVersion: VarSymbol->Long, maptypeSAVersion:
+        // TypeSymbol->Long, mapname: Symbol->Name) are held in one insertion-ordered map of immutable
+        // entries, because copying VarMaps (once per basic block) dominated the basic-block conversion.
+        // The key sets of mapSAVersion and mapname always coincided for VarSymbols, so iteration order
+        // over the VarSymbols (keySet) is unchanged.
+        private final java.util.LinkedHashMap<Symbol,VarEntry> map = new java.util.LinkedHashMap<>();
+
+        private Long versionOf(Symbol sym) {
+            VarEntry e = map.get(sym);
+            return e == null ? null : e.version;
+        }
+
         /** Returns a copy of the map */
         public VarMap copy() {
             VarMap v = new VarMap();
-            v.mapSAVersion.putAll(this.mapSAVersion);
-            v.maptypeSAVersion.putAll(this.maptypeSAVersion);
-            v.mapname.putAll(this.mapname);
+            v.map.putAll(this.map);
             return v;
         }
         
         /** Returns the name for a variable symbol as stored in this map */
         public /*@Nullable*/ Name getName(VarSymbol vsym) {
-            Name s = mapname.get(vsym);
-            return s;
+            VarEntry e = map.get(vsym);
+            return e == null ? null : e.name;
         }
-        
         /** Returns the name for a variable symbol as stored in this map, creating (and
          * storing) one if it is not present. */
         public /*@non_null*/ Name getCurrentName(VarSymbol vsym) {
-            Name s = mapname.get(vsym);
+            Name s = getName(vsym);
             boolean print = false; //vsym.name.toString().equals("i");
             if (print) System.out.println("GETCURRENTNAME " +  vsym + " " + s + " " + + System.identityHashCode(vsym) + " " + System.identityHashCode(lengthSym)
             + " " + vsym.owner + " " + vsym.owner.getClass() + " " + lengthSym.owner + " " + lengthSym.owner.getClass() + " " + vsym.isFinal());
@@ -2469,10 +2497,10 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
                 s = encodedName(vsym,vsym.pos);
                 //if (print) System.out.println("    NAME " + vsym + " " + vsym.pos + " " + s);
                 for (VarMap map: blockmaps.values()) {
-                    if (map.mapname.get(vsym) == null) map.putSAVersion(vsym,s,0L);
+                    if (map.getName(vsym) == null) map.putSAVersion(vsym,s,0L);
                 }
                 for (VarMap map: labelmaps.values()) {
-                    if (map.mapname.get(vsym) == null) map.putSAVersion(vsym,s,0L);
+                    if (map.getName(vsym) == null) map.putSAVersion(vsym,s,0L);
                 }
 
                 if (isDefined.add(s)) {
@@ -2489,14 +2517,14 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
         /** Returns the name for a type symbol as stored in this map; returns null
          * if no name is stored */
         public /*@ nullable */ Name getName(TypeSymbol vsym) {
-            Name s = mapname.get(vsym);
-            return s;
+            VarEntry e = map.get(vsym);
+            return e == null ? null : e.name;
         }
         
         /** Returns the name for a type symbol as stored in this map, creating (and
          * storing) one if it is not present. */
         public /*@non_null*/ Name getCurrentName(TypeSymbol vsym) {
-            Name s = mapname.get(vsym);
+            Name s = getName(vsym);
             if (s == null) {
                 s = encodedTypeName(vsym,0);
                 putSAVersion(vsym,s);
@@ -2507,7 +2535,7 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
         /** Returns the incarnation number (single-assignment version
          * number) for the symbol */
         public Long getSAVersionNum(VarSymbol vsym) {
-            Long i = mapSAVersion.get(vsym);
+            Long i = versionOf(vsym);
             if (i == null) {
                 Name n = encodedName(vsym,0L);
                 for (VarMap map: blockmaps.values()) {
@@ -2528,52 +2556,59 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
         /** Returns the incarnation number (single-assignment version
          * number) for the type symbol */
         public Long getSAVersionNum(TypeSymbol vsym) {
-            Long i = maptypeSAVersion.get(vsym);
+            Long i = versionOf(vsym);
             if (i == null) {
-                maptypeSAVersion.put(vsym,(i=0L));
+                map.put(vsym, new VarEntry(getName(vsym), (i=0L)));
             }
             return i;
         }
         
         /** Stores a new SA version of a symbol, with a custom name */
         public void putSAVersion(VarSymbol vsym, Name s, long version) {
-            mapSAVersion.put(vsym,version);
-            mapname.put(vsym,s);
+            map.put(vsym, new VarEntry(s, version));
         }
         
         /** Stores a new SA version of a symbol */
         public Name putSAVersion(VarSymbol vsym, long version) {
             Name s = encodedName(vsym,version);
-            mapSAVersion.put(vsym,version);
-            mapname.put(vsym,s);
+            map.put(vsym, new VarEntry(s, version));
             return s;
         }
         
         /** Stores a new SA version of a type symbol */
         public void putSAVersion(TypeSymbol vsym, Name s) {
-            maptypeSAVersion.put(vsym,0L);
-            mapname.put(vsym,s);
+            map.put(vsym, new VarEntry(s, 0L));
         }
 
         /** Adds everything in the argument map into the receiver's map */
         public void putAll(VarMap m) {
-            mapSAVersion.putAll(m.mapSAVersion);
-            maptypeSAVersion.putAll(m.maptypeSAVersion);
-            mapname.putAll(m.mapname);
+            map.putAll(m.map);
         }
         
         /** Removes a symbol from the map, as when it goes out of scope or
          * when a temporary variable is no longer needed. */
         public Long remove(Symbol v) {
-            mapname.remove(v);
-            return mapSAVersion.remove(v);
+            VarEntry e = map.get(v);
+            if (e == null) return null;
+            if (v instanceof TypeSymbol) {
+                // formerly only the name was removed; the type version (maptypeSAVersion) remained
+                if (e.version == null) map.remove(v);
+                else map.put(v, new VarEntry(null, e.version));
+                return null;
+            }
+            map.remove(v);
+            return e.version;
         }
         
         /** Returns the Set of all variable Symbols that are in the map;
          * note that variables that are in scope but have not been used
          * will not necessarily be present in the map. */
         public Set<VarSymbol> keySet() {
-            return mapSAVersion.keySet();
+            // A snapshot: the former mapSAVersion.keySet() view was not affected by (and did not fail on)
+            // additions of TypeSymbols, which now share the map, during iteration
+            Set<VarSymbol> keys = new java.util.LinkedHashSet<>();
+            for (Symbol s: map.keySet()) if (s instanceof VarSymbol v) keys.add(v);
+            return keys;
         }
         
 //        public String debug(String s) {
@@ -2588,20 +2623,11 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
         public String toString() {
             StringBuilder s = new StringBuilder();
             s.append("[");
-            Iterator<Map.Entry<VarSymbol,Long>> entries = mapSAVersion.entrySet().iterator();
-            while (entries.hasNext()) {
-                Map.Entry<VarSymbol,Long> entry = entries.next();
+            for (Map.Entry<Symbol,VarEntry> entry: map.entrySet()) {
+                if (!(entry.getKey() instanceof VarSymbol)) continue;
                 s.append(entry.getKey());
                 s.append("=");
-                s.append(entry.getValue());
-                s.append(",");
-            }
-            Iterator<Map.Entry<TypeSymbol,Long>> entriest = maptypeSAVersion.entrySet().iterator();
-            while (entries.hasNext()) {
-                Map.Entry<TypeSymbol,Long> entry = entriest.next();
-                s.append(entry.getKey());
-                s.append("=");
-                s.append(entry.getValue());
+                s.append(entry.getValue().version);
                 s.append(",");
             }
             s.append("]");
@@ -2623,7 +2649,7 @@ public class BasicBlocker2 extends BasicBlockerParent<BasicProgram.BasicBlock,Ba
             return gs.syms;
         }
         
-        private Set<VarSymbol> syms = new HashSet<VarSymbol>();
+        private Set<VarSymbol> syms = new java.util.LinkedHashSet<VarSymbol>(); // FinModel patch T6: insertion-ordered (was identity-hash ordered, making the SMT script depend on incidental hashing)
         
         public GetSymbols() {
         	super(null);
