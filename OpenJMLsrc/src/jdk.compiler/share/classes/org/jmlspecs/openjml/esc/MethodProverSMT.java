@@ -288,6 +288,8 @@ public class MethodProverSMT {
         if (splitlist == null) splitlist = "";
         String[] splits = splitlist.split(",");
         int skips = 0;
+        // FinModel patch T5: translate upcoming methods and start their solver sessions
+        if (jmlesc.prefetcher != null) jmlesc.prefetcher.advance(methodDecl);
         Translations translations = jmlesc.assertionAdder.methodBiMap.getf(methodDecl);
         if (translations == null) {
             utils.warning(methodDecl, "jml.message", "To check a specific method of an anonymous class, you must also check any containing methods");
@@ -344,95 +346,43 @@ public class MethodProverSMT {
             log.getWriter(WriterKind.NOTICE).flush();
         }
 
-        // create an SMT object, adding any options
-        SMT smt = new SMT();
-//        int seed = 0;
-//        String strseed = JmlOption.value(context, JmlOption.SEED);
-//        if (strseed != null && !strseed.isEmpty()) try {
-//            seed = Integer.parseInt(strseed);
-//            smt.smtConfig.seed = seed;
-//            if (utils.jmlverbose >= Utils.JMLVERBOSE) log.note("jml.message","Using seed " + seed);
-//        } catch (NumberFormatException e) {
-//            log.warning("jml.message","Expected an integer for a seed: " + strseed);
-//        }
-        smt.processCommandLine(new String[]{}, smt.smtConfig);
-        Object o = JmlOption.TIMEOUT.value(context);
-        if (o != null && !o.toString().isEmpty()) {
-            try {
-                smt.smtConfig.timeout = Double.parseDouble(o.toString());
-            } catch (NumberFormatException e) {
-                utils.warning("jml.message","Timeout value cannot be parsed as a double: " + o);
-            }
+        // FinModel patch T5: the translation (SMT object, basic blocks, SMT script) is factored into
+        // translateSplit, and starting the solver + executing the script into startAndExecute, so that
+        // EscPrefetcher can perform both ahead of time for later methods (solver work runs concurrently).
+        // When a prefetched result is used, the diagnostics/output recorded while it was produced are
+        // replayed here, at the point the sequential code would have produced them.
+        EscPrefetcher.Prepared prepared = jmlesc.prefetcher == null ? null : jmlesc.prefetcher.take(methodDecl, splitkey);
+        Translated tr;
+        if (prepared != null) {
+            prepared.replayTranslation();
+            if (prepared.thrown != null) EscPrefetcher.sneakyThrow(prepared.thrown);
+            tr = prepared.translated;
+        } else {
+            tr = translateSplit(methodDecl, newblock, currentClassDecl, proverToUse, printBB, printSMT, null);
         }
-
-        // Add a listener for errors and start the solver.
-        // The listener is set to use the defaultPrinter for printing 
-        // SMT abstractions and forwards all informational and error messages
-        // to the OpenJML log mechanism
-        smt.smtConfig.log.addListener(new SMTListener(log,smt.smtConfig.defaultPrinter));
-        SMTTranslator smttrans = getTranslator(context, methodDecl.sym.toString());
+        if (tr.early != null) return tr.early;
+        SMT smt = tr.smt;
+        SMTTranslator smttrans = tr.smttrans;
+        BasicBlocker2 basicBlocker = tr.basicBlocker;
+        BasicProgram program = tr.program;
+        ICommand.IScript script = tr.script;
 
         IResponse solverResponse = null;
-        BasicBlocker2 basicBlocker;
-        BasicProgram program;
         Date start;
         double duration = 0;
-        ICommand.IScript script;
         boolean usePushPop = true; // FIXME - false is not working yet
         {
-            // now convert to basic block form
-            basicBlocker = new BasicBlocker2(context);
-            program = basicBlocker.convertMethodBody(newblock, methodDecl, currentClassDecl, jmlesc.assertionAdder);
-            if (printBB) {
-                log.getWriter(WriterKind.NOTICE).println(Strings.empty);
-                log.getWriter(WriterKind.NOTICE).println(separator);
-                log.getWriter(WriterKind.NOTICE).println(Strings.empty);
-                log.getWriter(WriterKind.NOTICE).println("BasicBlock2 FORM of " + utils.qualifiedMethodSig(methodDecl.sym));
-                log.getWriter(WriterKind.NOTICE).println(program.toString());
-            }
-
-            // convert the basic block form to SMT
-            try {
-                var escbv = JmlOption.ESC_BV.value(context);
-                try {
-                    if (utils.progress() && methodDecl.usedBitVectors && !"true".equals(escbv)) {
-                    	utils.note("Using bit-vector arithmetic");
-                    }
-                    script = smttrans.convert(program,smt,methodDecl.usedBitVectors);
-                } catch (SMTTranslator.JmlBVException e) {
-                    if ("false".equals(escbv)) {
-                        return factory.makeProverResult(methodDecl,proverToUse,IProverResult.ERROR,new Date());
-                    }
-                    if (!utils.testingMode && utils.progress()) {
-                    	utils.note(false, "Switching to bit-vector arithmetic");
-                    }
-                    script = new SMTTranslator(context, methodDecl.sym.toString()).convert(program,smt,true);
-                }
-                if (printSMT) {
-                    try {
-                        log.getWriter(WriterKind.NOTICE).println(Strings.empty);
-                        log.getWriter(WriterKind.NOTICE).println(separator);
-                        log.getWriter(WriterKind.NOTICE).println(Strings.empty);
-                        log.getWriter(WriterKind.NOTICE).println("SMT TRANSLATION OF " + utils.qualifiedMethodSig(methodDecl.sym));
-                        org.smtlib.sexpr.Printer.WithLines.write(new PrintWriter(log.getWriter(WriterKind.NOTICE)),script);
-                        log.getWriter(WriterKind.NOTICE).println();
-                        log.getWriter(WriterKind.NOTICE).println();
-                    } catch (VisitorException e) {
-                        log.getWriter(WriterKind.NOTICE).print("Exception while printing SMT script: " + e); //$NON-NLS-1$
-                    }
-                }
-            } catch (SMTTranslator.JmlBVException e) {
-                throw e;
-            } catch (Exception e) {
-                var d = utils.errorDiag(log.currentSource(), null, "jml.internal", "Failed to convert to SMT: " + e);
-                //e.printStackTrace(System.out);
-                return factory.makeProverResult(methodDecl,proverToUse,IProverResult.ERROR,new Date()).setOtherInfo(d);
-            }
             // Starts the solver (and it waits for input)
-            start = new Date();
+            Executed ex;
+            if (prepared != null) {
+                ex = prepared.awaitExecution(); // replays anything logged while the script executed
+                solver = ex.solver;
+            } else {
+                ex = null;
+            }
+            start = ex != null ? ex.start : new Date();
             //setBenchmark(proverToUse,methodDecl.name.toString(),smt.smtConfig);
-            String smtProver = proverToUse.replace(".exe","").replace(".X","").replace("-","_").replace(".","_");
-            solver = smt.startSolver(smt.smtConfig,"z3_4_3",exec); // Argument is the SMT library adapter
+            if (ex == null) solver = smt.startSolver(smt.smtConfig,"z3_4_3",exec); // Argument is the SMT library adapter
             if (solver == null) { 
             	//log.error("jml.solver.failed.to.start",exec);
                 JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "jml.solver.failed.to.start",exec);
@@ -441,30 +391,11 @@ public class MethodProverSMT {
             } else {
             	// Try the prover
             	if (verbose) log.getWriter(WriterKind.NOTICE).println("EXECUTION"); //$NON-NLS-1$
-            	String filename = JmlOption.SMT.value(context);
-            	if (filename != null && filename.isEmpty()) filename = "out.smt2";
+            	writeSmtFile(methodDecl, script);
             	try {
-                	String name = utils.methodName(methodDecl.sym);
-                	if (filename != null) {
-                		filename = filename.replace("%%",utils.qualifiedMethodSig(methodDecl.sym)).replace("%_", name);
-                		new java.io.File(filename).getAbsoluteFile().getParentFile().mkdirs();
-            	        try (var fw = new java.io.FileWriter(new java.io.File(filename))) {
-            			    var sw = new java.io.StringWriter();
-            			    org.smtlib.sexpr.Printer.WithLines.write(sw,script);
-            			    fw.write("; Proof attempt for " + utils.qualifiedMethodSig(methodDecl.sym));
-            			    String s = sw.toString();
-            			    int i = s.lastIndexOf(')');
-            			    fw.write(sw.toString(),1,i-1); // Removes the enclosing parentheses
-            		    } finally { 
-            	    	    // auto close of the FileWriter
-            		    }
-            	    }
-            	} catch (Exception e) {
-                    JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "jml.esc.badfile", methodDecl.getName(), filename, e.toString());
-                    log.report(d);
-            	}
-            	try {
-            		solverResponse = script.execute(solver); // Note - the solver knows the smt configuration
+            		if (ex == null) solverResponse = script.execute(solver); // Note - the solver knows the smt configuration
+            		else if (ex.exception != null) throw ex.exception;
+            		else solverResponse = ex.response;
             	} catch (Exception e) {
                     JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "jml.esc.badscript", methodDecl.getName(), e.toString());
                     log.report(d);
@@ -475,7 +406,7 @@ public class MethodProverSMT {
                     if (aborted) {
                     	throw new Main.JmlCanceledException("Aborted by user");
                     }
-                    duration = (System.currentTimeMillis() - start.getTime())/1000.0;
+                    duration = ex != null ? ex.duration : (System.currentTimeMillis() - start.getTime())/1000.0;
             	}
             }
 
@@ -848,6 +779,136 @@ public class MethodProverSMT {
         
     }
     
+    /** FinModel patch T5: the result of translating one split of a method to an SMT script
+     * (or the early result the translation decided on). */
+    public static class Translated {
+        public SMT smt;
+        public SMTTranslator smttrans;
+        public BasicBlocker2 basicBlocker;
+        public BasicProgram program;
+        public ICommand.IScript script;
+        /** non-null if proving must stop with this result */
+        public IProverResult early;
+    }
+
+    /** FinModel patch T5: the result of starting the solver and executing the script (up to and including the first check-sat) */
+    public static class Executed {
+        public Date start;
+        public ISolver solver; // null if the solver failed to start
+        public IResponse response;
+        public Exception exception; // thrown by script.execute
+        public double duration;
+    }
+
+    /** FinModel patch T5: Translates one split of the method to an SMT script (unchanged code, factored out of prove).
+     * If smtListener is non-null it is used as the SMT log listener instead of a fresh SMTListener. */
+    public Translated translateSplit(JmlMethodDecl methodDecl, JCBlock newblock, JmlClassDecl currentClassDecl,
+            String proverToUse, boolean printBB, boolean printSMT, org.smtlib.Log.IListener smtListener) {
+        Translated tr = new Translated();
+        // create an SMT object, adding any options
+        SMT smt = new SMT();
+        tr.smt = smt;
+        smt.processCommandLine(new String[]{}, smt.smtConfig);
+        Object o = JmlOption.TIMEOUT.value(context);
+        if (o != null && !o.toString().isEmpty()) {
+            try {
+                smt.smtConfig.timeout = Double.parseDouble(o.toString());
+            } catch (NumberFormatException e) {
+                utils.warning("jml.message","Timeout value cannot be parsed as a double: " + o);
+            }
+        }
+
+        // Add a listener for errors and start the solver.
+        // The listener is set to use the defaultPrinter for printing 
+        // SMT abstractions and forwards all informational and error messages
+        // to the OpenJML log mechanism
+        smt.smtConfig.log.addListener(smtListener != null ? smtListener : new SMTListener(log,smt.smtConfig.defaultPrinter));
+        SMTTranslator smttrans = getTranslator(context, methodDecl.sym.toString());
+        tr.smttrans = smttrans;
+
+        // now convert to basic block form
+        BasicBlocker2 basicBlocker = new BasicBlocker2(context);
+        BasicProgram program = basicBlocker.convertMethodBody(newblock, methodDecl, currentClassDecl, jmlesc.assertionAdder);
+        tr.basicBlocker = basicBlocker;
+        tr.program = program;
+        if (printBB) {
+            log.getWriter(WriterKind.NOTICE).println(Strings.empty);
+            log.getWriter(WriterKind.NOTICE).println(separator);
+            log.getWriter(WriterKind.NOTICE).println(Strings.empty);
+            log.getWriter(WriterKind.NOTICE).println("BasicBlock2 FORM of " + utils.qualifiedMethodSig(methodDecl.sym));
+            log.getWriter(WriterKind.NOTICE).println(program.toString());
+        }
+
+        // convert the basic block form to SMT
+        ICommand.IScript script;
+        try {
+            var escbv = JmlOption.ESC_BV.value(context);
+            try {
+                if (utils.progress() && methodDecl.usedBitVectors && !"true".equals(escbv)) {
+                	utils.note("Using bit-vector arithmetic");
+                }
+                script = smttrans.convert(program,smt,methodDecl.usedBitVectors);
+            } catch (SMTTranslator.JmlBVException e) {
+                if ("false".equals(escbv)) {
+                    tr.early = factory.makeProverResult(methodDecl,proverToUse,IProverResult.ERROR,new Date());
+                    return tr;
+                }
+                if (!utils.testingMode && utils.progress()) {
+                	utils.note(false, "Switching to bit-vector arithmetic");
+                }
+                script = new SMTTranslator(context, methodDecl.sym.toString()).convert(program,smt,true);
+            }
+            if (printSMT) {
+                try {
+                    log.getWriter(WriterKind.NOTICE).println(Strings.empty);
+                    log.getWriter(WriterKind.NOTICE).println(separator);
+                    log.getWriter(WriterKind.NOTICE).println(Strings.empty);
+                    log.getWriter(WriterKind.NOTICE).println("SMT TRANSLATION OF " + utils.qualifiedMethodSig(methodDecl.sym));
+                    org.smtlib.sexpr.Printer.WithLines.write(new PrintWriter(log.getWriter(WriterKind.NOTICE)),script);
+                    log.getWriter(WriterKind.NOTICE).println();
+                    log.getWriter(WriterKind.NOTICE).println();
+                } catch (VisitorException e) {
+                    log.getWriter(WriterKind.NOTICE).print("Exception while printing SMT script: " + e); //$NON-NLS-1$
+                }
+            }
+        } catch (SMTTranslator.JmlBVException e) {
+            throw e;
+        } catch (Exception e) {
+            var d = utils.errorDiag(log.currentSource(), null, "jml.internal", "Failed to convert to SMT: " + e);
+            //e.printStackTrace(System.out);
+            tr.early = factory.makeProverResult(methodDecl,proverToUse,IProverResult.ERROR,new Date()).setOtherInfo(d);
+            return tr;
+        }
+        tr.script = script;
+        return tr;
+    }
+
+    /** Writes the script to the file given by the --smt option, if any (factored out of prove) */
+    protected void writeSmtFile(JmlMethodDecl methodDecl, ICommand.IScript script) {
+    	String filename = JmlOption.SMT.value(context);
+    	if (filename != null && filename.isEmpty()) filename = "out.smt2";
+    	try {
+        	String name = utils.methodName(methodDecl.sym);
+        	if (filename != null) {
+        		filename = filename.replace("%%",utils.qualifiedMethodSig(methodDecl.sym)).replace("%_", name);
+        		new java.io.File(filename).getAbsoluteFile().getParentFile().mkdirs();
+    	        try (var fw = new java.io.FileWriter(new java.io.File(filename))) {
+    			    var sw = new java.io.StringWriter();
+    			    org.smtlib.sexpr.Printer.WithLines.write(sw,script);
+    			    fw.write("; Proof attempt for " + utils.qualifiedMethodSig(methodDecl.sym));
+    			    String s = sw.toString();
+    			    int i = s.lastIndexOf(')');
+    			    fw.write(sw.toString(),1,i-1); // Removes the enclosing parentheses
+    		    } finally { 
+    	    	    // auto close of the FileWriter
+    		    }
+    	    }
+    	} catch (Exception e) {
+            JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "jml.esc.badfile", methodDecl.getName(), filename, e.toString());
+            log.report(d);
+    	}
+    }
+
     String transResult(IProverResult.Kind k) {
         return k == IProverResult.UNSAT ? "Verified" : (k == IProverResult.SAT || k == IProverResult.POSSIBLY_SAT) ? "Not verified" : k.toString(); 
     }
