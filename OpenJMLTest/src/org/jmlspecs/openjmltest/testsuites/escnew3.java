@@ -2222,4 +2222,70 @@ public class escnew3 extends EscBase {
                 ,"/tt/TestJava.java:6: verify: The prover cannot establish an assertion (Assert) in method m", 9
                 );
     }
+
+    /** FinModel patch J (ISSUE-2121/2562): a method call inside a static invariant, translated by
+     *  checkStaticInitialization for a class whose own methods are not translated (here: not selected
+     *  by --method), used to NPE in addMethodAxioms (null methodAxiomsBlock on the initial heap),
+     *  reported only as a warning. Now it translates cleanly; the ensures-false control in B must
+     *  still be reported and the static invariant must still be assumed in B.m2. */
+    @Test
+    public void testStaticInvariantMethodCall() {
+        addOptions("--method=tt.B.m,tt.B.m2");
+        helpEsc2("tt.A",
+                """
+                package tt;
+                public class A {
+                  public static final java.util.List<String> EMPTY = java.util.List.of();
+                  //@ public static invariant EMPTY != null && EMPTY.isEmpty();
+
+                  //@ ensures \\result == 1;
+                  public static int one() { return 1; }
+                }
+                """,
+                "tt.B",
+                """
+                package tt;
+                public class B {
+                  //@ ensures false;
+                  public static int m() { return A.one(); }
+
+                  //@ ensures \\result;
+                  public static boolean m2() { return A.EMPTY.isEmpty(); }
+                }
+                """
+                ,"/tt/A.java:4: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.A.null)",31
+                ,"/tt/B.java:7: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m())",16
+                ,"/tt/B.java:7: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m2())",16
+                ,"/tt/B.java:4: verify: The prover cannot establish an assertion (Postcondition) in method m",27
+                ,"/tt/B.java:3: verify: Associated declaration",7
+                );
+    }
+
+    /** FinModel patch J: same shape with a field-of-a-field chain (EditList's original
+     *  EMPTY.edits.isEmpty()), with A's methods excluded rather than unselected. */
+    @Test
+    public void testStaticInvariantMethodCallChain() {
+        addOptions("--exclude=tt\\.A\\..*");
+        helpEsc2("tt.A",
+                """
+                package tt;
+                public class A {
+                  public final java.util.List<String> edits = new java.util.ArrayList<>();
+                  public static A EMPTY = new A();
+                  //@ public static invariant EMPTY != null && EMPTY.edits != null && EMPTY.edits.isEmpty();
+                  public static int one() { return 1; }
+                }
+                """,
+                "tt.B",
+                """
+                package tt;
+                public class B {
+                  //@ ensures false;
+                  public static int m() { return A.one(); }
+                }
+                """
+                ,"/tt/B.java:4: verify: The prover cannot establish an assertion (Postcondition) in method m",27
+                ,"/tt/B.java:3: verify: Associated declaration",7
+                );
+    }
 }
