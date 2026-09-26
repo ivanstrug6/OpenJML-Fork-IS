@@ -2347,6 +2347,9 @@ public class SMTTranslator extends JmlTreeScanner {
                 // skip
             } else if (tree.type.getTag() == TypeTag.BOOLEAN) {
                 TypeTag max = bits(tlhs) > bits(trhs) ? tlhs : trhs;
+                // FinModel patch K (ISSUE-2565): Java binary numeric promotion is to at least int;
+                // comparing two 16-bit chars directly with signed bv ops mis-orders values >= 0x8000.
+                if (bits(tlhs) > 0 && bits(trhs) > 0 && bits(max) < 32) max = TypeTag.INT;
                 lhs = castBV(max,tree.lhs.type.getTag(),lhs);
                 rhs = castBV(max,tree.rhs.type.getTag(),rhs);
             } else {
@@ -2817,7 +2820,11 @@ public class SMTTranslator extends JmlTreeScanner {
                             } else if (br > be) {
                                 List<IIndex> args = new LinkedList<>();
                                 args.add(F.numeral(br-be));
-                                result = F.fcn(F.id(F.symbol("sign_extend"),args),result);
+                                // FinModel patch K (ISSUE-2565): char is unsigned -- widening it must
+                                // zero-extend; sign_extend made e.g. '\uFFFD' (String.REPL) negative and
+                                // the implicit 0 <= (int)c <= 65535 range assumption false (vacuous proofs).
+                                String ext = tage == TypeTag.CHAR ? "zero_extend" : "sign_extend";
+                                result = F.fcn(F.id(F.symbol(ext),args),result);
                             }
                         } else {
                             if (be > br) {
@@ -2872,7 +2879,9 @@ public class SMTTranslator extends JmlTreeScanner {
         } else if (be < br) {
             List<IIndex> args = new LinkedList<>();
             args.add(F.numeral(br-be));
-            return F.fcn(F.id(F.symbol("sign_extend"),args),expr);
+            // FinModel patch K (ISSUE-2565): char is unsigned, so widening it zero-extends.
+            String ext = exprtag == TypeTag.CHAR ? "zero_extend" : "sign_extend";
+            return F.fcn(F.id(F.symbol(ext),args),expr);
         } else {
             return expr;
         }
