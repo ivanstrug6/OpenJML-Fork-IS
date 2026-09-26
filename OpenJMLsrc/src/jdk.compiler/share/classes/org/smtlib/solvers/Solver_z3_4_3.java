@@ -82,6 +82,44 @@ public class Solver_z3_4_3 extends AbstractSolver implements ISolver {
 	/** Map that keeps current values of options */
 	protected Map<String,IAttributeValue> options = new HashMap<String,IAttributeValue>();
 	
+	// FinModel patch T1: cache of executable -> "-t is in milliseconds" (z3 >= 4.4), probed once per JVM
+	private static final Map<String,Boolean> timeoutInMillis = new java.util.concurrent.ConcurrentHashMap<>();
+	private static final Pattern z3VersionPattern = Pattern.compile("(?i)z3[ _-]*(?:version\\s*)?(\\d+)[._](\\d+)");
+
+	/** FinModel patch T1: returns the value for z3's -t: (soft, per-query timeout) option for
+	 * the given timeout in seconds. z3 4.3.x interprets it in seconds, z3 4.4 and later in
+	 * milliseconds. The version is obtained from 'exec -version' (cached), falling back to the
+	 * executable's file name; if neither identifies a version, seconds (the 4.3 behavior) is assumed. */
+	public static String softTimeoutArg(String executable, double timeoutSecs) {
+		boolean millis = timeoutInMillis.computeIfAbsent(executable == null ? "" : executable, Solver_z3_4_3::probeTimeoutInMillis);
+		return millis ? Long.toString(Math.round(timeoutSecs * 1000)) : Integer.toString((int)timeoutSecs);
+	}
+
+	private static boolean probeTimeoutInMillis(String executable) {
+		String version = null;
+		if (!executable.isEmpty()) {
+			try {
+				Process p = new ProcessBuilder(executable, "-version").redirectErrorStream(true).start();
+				p.getOutputStream().close();
+				if (p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) version = new String(p.getInputStream().readAllBytes());
+				else p.destroyForcibly();
+			} catch (Exception e) {
+				// fall through to the file-name heuristic
+			}
+		}
+		for (String text: new String[]{ version, new java.io.File(executable).getName() }) {
+			if (text == null) continue;
+			Matcher m = z3VersionPattern.matcher(text);
+			if (m.find()) return versionAtLeast_4_4(m);
+		}
+		return false;
+	}
+
+	private static boolean versionAtLeast_4_4(Matcher m) {
+		int major = Integer.parseInt(m.group(1)), minor = Integer.parseInt(m.group(2));
+		return major > 4 || (major == 4 && minor >= 4);
+	}
+
 	/** Creates an instance of the Z3 solver */
 	public Solver_z3_4_3(SMT.Configuration smtConfig, /*@NonNull*/ String executable) {
 		this.smtConfig = smtConfig;
@@ -104,8 +142,11 @@ public class Solver_z3_4_3 extends AbstractSolver implements ISolver {
 		if (timeout > 0) {
 			List<String> args = new java.util.ArrayList<String>(cmds.length+1);
 			args.addAll(Arrays.asList(cmds));
-			if (isWindows) args.add("/t:" + Integer.toString((int)timeout));
-			else           args.add("-t:" + Integer.toString((int)timeout));
+			// FinModel patch T1: z3 >= 4.4 reads -t:<n> as MILLIseconds (4.3.x read seconds);
+			// passing the seconds value unchanged gave newer z3 a 15 ms per-query budget.
+			String t = softTimeoutArg(cmds[0], timeout);
+			if (isWindows) args.add("/t:" + t);
+			else           args.add("-t:" + t);
 			cmds = args.toArray(new String[args.size()]);
 		}
 		solverProcess = new SolverProcess(cmds,"\n",smtConfig.logfile);
@@ -125,8 +166,11 @@ public class Solver_z3_4_3 extends AbstractSolver implements ISolver {
 		if (timeout > 0) {
 			List<String> args = new java.util.ArrayList<String>(cmds.length+1);
 			args.addAll(Arrays.asList(cmds));
-			if (isWindows) args.add("/t:" + Integer.toString((int)timeout));
-			else           args.add("-t:" + Integer.toString((int)timeout));
+			// FinModel patch T1: z3 >= 4.4 reads -t:<n> as MILLIseconds (4.3.x read seconds);
+			// passing the seconds value unchanged gave newer z3 a 15 ms per-query budget.
+			String t = softTimeoutArg(cmds[0], timeout);
+			if (isWindows) args.add("/t:" + t);
+			else           args.add("-t:" + t);
 			cmds = args.toArray(new String[args.size()]);
 		}
 		solverProcess = new SolverProcess(cmds,"\n",smtConfig.logfile);
