@@ -122,8 +122,13 @@ public class SolverProcess {
     		    fromProcess = new BufferedReader(new InputStreamReader(process.getInputStream()));
     		    errors = new InputStreamReader(process.getErrorStream());
     		}
-    		Thread.sleep(1000);
-    		if (listen) listen();
+    		// FinModel patch T2: the unconditional 1 s sleep here was paid once per proved method
+    		// (a fresh solver is started per method), e.g. ~54 s of a 385 s file. Output is read by
+    		// blocking reads, so the sleep is only kept for solvers whose startup banner is listened for.
+    		if (listen) {
+    		    Thread.sleep(1000);
+    		    listen();
+    		}
     	} catch (IOException e) {
     		throw new ProverException(e.getMessage());
     	} catch (RuntimeException|InterruptedException e) {

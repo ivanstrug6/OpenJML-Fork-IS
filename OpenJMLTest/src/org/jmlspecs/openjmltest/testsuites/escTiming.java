@@ -934,4 +934,24 @@ public class escTiming extends EscBase {
 //                                                                                                                    
                 );
     }
+
+    // FinModel patch T1: --timeout is in seconds, but z3 4.4 and later read the -t: option in
+    // milliseconds (4.3.x read seconds). Before the fix, --timeout=1 gave a newer z3 a 1 ms budget
+    // per query, so even this easy proof was reported as unknown ("no model available (possible timeout)").
+    @Test
+    public void testTimeoutUnitsNewerZ3() {
+        String exec = org.jmlspecs.openjml.Main.solvers + "/Solvers-" + org.jmlspecs.openjml.Utils.identifyOS(null) + "/z3-4.10.2";
+        Assume.assumeTrue(new java.io.File(exec).exists() || new java.io.File(exec + ".exe").exists());
+        addOptions("--prover=z3-4.10.X", "--timeout=1");
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  //@ requires 0 <= x && x < 1000 && 0 <= y && y < 1000;
+                  //@ ensures \\result == x * y + x;
+                  public int f(int x, int y) { int r = x * y; return r + x; }
+                }
+                """
+                );
+    }
 }
