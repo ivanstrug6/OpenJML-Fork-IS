@@ -7946,7 +7946,9 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 	            }
 	        }
 	    } catch (Throwable e) {
-	        utils.warning(that,"jml.message","Unexpected exception in visitConditional: " +  that + " : " + that.type);
+	        // FinModel patch J (ISSUE-2120): an internal exception must be an error (non-zero exit),
+	        // as with utils.unexpectedException elsewhere, never a warning that looks like a clean pass.
+	        utils.error(that,"jml.internal","Unexpected exception in visitConditional: " +  that + " : " + that.type + " : " + e);
 	        e.printStackTrace(System.out);
 	    }
 
@@ -12865,7 +12867,9 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 	            }
 	        }
 	    } catch (Throwable e) {
-	        utils.warning(that,"jml.message","Unexpected exception in addMethodAxioms: " + calleeMethodSym + " " + that );
+	        // FinModel patch J (ISSUE-2120): an internal exception must be an error (non-zero exit),
+	        // as with utils.unexpectedException elsewhere, never a warning that looks like a clean pass.
+	        utils.error(that,"jml.internal","Unexpected exception in addMethodAxioms: " + calleeMethodSym + " " + that + " : " + e);
 	        e.printStackTrace(System.out);
 	    }
 	}
@@ -18734,11 +18738,20 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 		// FIXME - what are the rules about accessibility for static initializers
 		boolean pv = checkAccessEnabled;
 		checkAccessEnabled = false;
+		// FinModel patch J (ISSUE-2121/2562): the static invariants are translated here outside
+		// of any method, so currentHeap is either the adder's initial heap (no methodAxiomsBlock ->
+		// NPE in addMethodAxioms for any method call in a static invariant) or a stale heap left over
+		// from the last translated method (axioms would be appended into that method's body).
+		// Start a fresh heap state local to this static-initialization block, as addPreConditions
+		// does for a method, and restore the previous state afterwards.
+		HeapInfo savedHeap = saveState();
 		try {
+			if (esc || infer) changeState(classDecl, null);
 			addInvariants(classDecl, classDecl.sym.type, null, currentStatements, true, false, false, false, true,
 					false, Label.STATIC_INVARIANT);
 			clearInvariants();
 		} finally {
+			resetState(savedHeap);
 			checkAccessEnabled = pv;
 		}
 		JCBlock bl = popBlock(Flags.STATIC, classDecl, check);
@@ -24763,7 +24776,14 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 //			collectedAxioms.add(bl);
 //			bl = null;
 //		}
-		currentHeap.methodAxiomsBlock.stats = currentHeap.methodAxiomsBlock.stats.append(bl);
+		if (currentHeap.methodAxiomsBlock != null) {
+			currentHeap.methodAxiomsBlock.stats = currentHeap.methodAxiomsBlock.stats.append(bl);
+		} else {
+			// FinModel patch J (ISSUE-2121): no state-change block exists for this heap (translation
+			// outside a method body); the axioms are still valid here, so keep them in place rather
+			// than dereferencing null.
+			addStat(bl);
+		}
 		return null;
 	}
 
