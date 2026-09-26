@@ -78,7 +78,7 @@ public class Object {
 
     //@ public normal_behavior
     //@     assignable privateState;
-    //+RAC@ ensures \result == theHashCode;
+    // ensures \result == theHashCode;   // disabled for ESC and RAC: unmeetable model-field obligation in ESC (FinModel ISSUE-146); theHashCode is not declared under RAC
     //@ also public code normal_behavior
     //@     assignable privateState;
     //@     ensures \result == System.identityHashCode(this);
