@@ -408,4 +408,76 @@ public class escbitvector extends EscBase {
                 ,"/tt/TestJava.java:13: verify: Associated declaration",7
                 );
     }
+
+    /** FinModel patch L: primitive widening/narrowing among byte/short/char/int/long, in both
+     *  bit-vector and integer encodings. Used to give SMT sort-mismatch errors in BV mode (char to int
+     *  via return, assignment, field/array store, local init, explicit cast) and wrong values in
+     *  integer mode (sign-extended/sign-truncated char). The last four methods are non-vacuity
+     *  controls that must be reported. */
+    public void helpConversions(String mode) {
+        addOptions("--esc-bv=" + mode);
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                //@ code_java_math spec_java_math
+                public class TestJava {
+                  //@ requires c == '\\uFFFD'; ensures \\result == 0xFFFD;
+                  static int ret(char c) { return c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == 0xFFFD;
+                  static int cast(char c) { return (int)c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == 0xFFFDL;
+                  static long toLong(char c) { return c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == -3;
+                  static short toShort(char c) { return (short)c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == -3;
+                  static byte toByte(char c) { return (byte)c; }
+                  //@ requires b == -1; ensures \\result == '\\uFFFF';
+                  static char fromByte(byte b) { return (char)b; }
+                  //@ requires s == -3; ensures \\result == '\\uFFFD';
+                  static char fromShort(short s) { return (char)s; }
+                  //@ requires i == 65533 + 65536; ensures \\result == '\\uFFFD';
+                  static char fromInt(int i) { return (char)i; }
+                  //@ requires i == 200; ensures \\result == -56;
+                  static byte intToByte(int i) { return (byte)i; }
+                  //@ requires c == '\\uFFFF'; ensures \\result == 0;
+                  static char incr(char c) { c++; return c; }
+                  //@ requires c == '\\uFFFE'; ensures \\result == '\\uFFFF';
+                  static char compound(char c) { c += 1; return c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == 1;
+                  static int sw(char c) { switch (c) { case '\\uFFFD': return 1; default: return 0; } }
+                  static int fld;
+                  //@ requires c == '\\uFFFD'; assignable fld; ensures fld == 0xFFFD;
+                  static void store(char c) { fld = c; }
+                  //@ requires a.length == 1 && c == '\\uFFFD'; assignable a[0]; ensures a[0] == 0xFFFD;
+                  static void astore(int[] a, char c) { a[0] = c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == 0xFFFD;
+                  static int local(char c) { int x = c; return x; }
+                  //@ requires b == -1; ensures \\result == 255;
+                  static char badFromByte(byte b) { return (char)b; }
+                  //@ requires c == '\\uFFFD'; ensures \\result == 65533;
+                  static short badToShort(char c) { return (short)c; }
+                  //@ requires c == '\\uFFFD'; ensures \\result < 0;
+                  static int badRet(char c) { return c; }
+                  //@ requires c == '\\uFFFF'; ensures \\result == 65536;
+                  static int badIncr(char c) { c++; return c; }
+                }
+                """
+                ,anyorder(
+                   seq("/tt/TestJava.java:36: verify: The prover cannot establish an assertion (Postcondition) in method badFromByte",37
+                      ,"/tt/TestJava.java:35: verify: Associated declaration",25)
+                  ,seq("/tt/TestJava.java:38: verify: The prover cannot establish an assertion (Postcondition) in method badToShort",37
+                      ,"/tt/TestJava.java:37: verify: Associated declaration",31)
+                  ,seq("/tt/TestJava.java:40: verify: The prover cannot establish an assertion (Postcondition) in method badRet",31
+                      ,"/tt/TestJava.java:39: verify: Associated declaration",31)
+                  ,seq("/tt/TestJava.java:42: verify: The prover cannot establish an assertion (Postcondition) in method badIncr",37
+                      ,"/tt/TestJava.java:41: verify: Associated declaration",31)
+                )
+                );
+    }
+
+    @Test
+    public void testConversionsBV() { helpConversions("true"); }
+
+    @Test
+    public void testConversionsInt() { helpConversions("false"); }
 }

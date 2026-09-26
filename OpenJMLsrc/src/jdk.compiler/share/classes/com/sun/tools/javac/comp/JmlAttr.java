@@ -1516,7 +1516,11 @@ public class JmlAttr extends Attr implements IJmlVisitor {
         this.env = env;
         this.enclosingMethodEnv = env;
         if (methodSpecs == null) {
-            if ((methodSym.flags() & Flags.SYNTHETIC) == 0) System.out.println("NO SPECS FOR " + methodSym); // FIXME - error?
+            // FinModel patch N: no loaded specs just means the method is attributed as plain Java (it
+            // fired for record canonical constructors whose .jml record block failed to match -- fixed
+            // at the source by the record-matching patch). Debug output only, not stdout noise.
+            if ((methodSym.flags() & Flags.SYNTHETIC) == 0 && utils.jmlverbose >= org.jmlspecs.openjml.Utils.JMLDEBUG)
+                System.out.println("NO SPECS FOR " + methodSym);
             super.attribMethodSpecsAndBody(methodSym, body, env);
             return;
         }
@@ -6499,7 +6503,12 @@ public class JmlAttr extends Attr implements IJmlVisitor {
     protected boolean isContainedInDatagroup(/*@nullable*/ VarSymbol varSym, /*@nullable*/ VarSymbol contextSym) {
         if (varSym == contextSym) return true;
         JmlSpecs.FieldSpecs fspecs = specs.getAttrSpecs(varSym);
-        if (fspecs == null) System.out.println("NO SPECS FOR " + varSym + " " + contextSym);
+        // FinModel patch N: this used to print and then NPE on fspecs.list. A field without loaded
+        // specs has no 'in' clauses, so it is contained in no other datagroup (conservative).
+        if (fspecs == null) {
+            if (utils.jmlverbose >= org.jmlspecs.openjml.Utils.JMLDEBUG) System.out.println("NO SPECS FOR " + varSym + " " + contextSym);
+            return false;
+        }
         for (JmlTypeClause t: fspecs.list) {
             if (t.clauseType == inClause) {  // FIXME - relies on variable IN clauses being attributed before a method that uses them
                 for (JmlGroupName g: ((JmlTypeClauseIn)t).list) {
