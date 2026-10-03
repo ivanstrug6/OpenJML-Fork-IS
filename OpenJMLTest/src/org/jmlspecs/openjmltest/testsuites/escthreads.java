@@ -75,4 +75,21 @@ public class escthreads extends EscBase {
         addOptions("--esc-threads=3", "--check-feasibility=reachable");
         helpEsc("tt.TestJava", program, expected);
     }
+
+    /** --esc-threads is a validated option: a negative value is a command-line error (exit 2)
+     * with the pinned message, not a silently ignored setting. */
+    @Test
+    public void testEscThreadsRejectsNegative() {
+        int exitCode = 4;
+        collectSystemOutput(true);
+        try {
+            exitCode = org.jmlspecs.openjml.Main.execute(new String[]{"--esc-threads=-1"});
+        } finally {
+            collectSystemOutput(false);
+        }
+        String text = (output() + errorOutput()).replace("\r", "");
+        Assert.assertTrue("Missing option-error message; output was: " + text,
+                text.contains("Expected a non-negative integer as argument for --esc-threads: -1"));
+        Assert.assertEquals("The exit code is wrong", 2, exitCode);
+    }
 }
