@@ -77,6 +77,11 @@ public class EscPrefetcher {
 
         /** Replays, on the compiler thread, the output recorded while translating */
         public void replayTranslation() {
+            // FinModel patch T5: recorded SMT-log events need a listener to forward to; this is the
+            // listener a sequential translation would have logged to
+            org.smtlib.IPrinter printer = translated != null ? translated.smt.smtConfig.defaultPrinter
+                    : new org.smtlib.SMT().smtConfig.defaultPrinter;
+            smtListener.replayTarget = new MethodProverSMT.SMTListener(log, printer);
             for (Runnable r: translationEvents) r.run();
             translationEvents.clear();
         }
@@ -97,9 +102,11 @@ public class EscPrefetcher {
                 sneakyThrow(e.getCause());
                 return null; // not reached
             }
+            // FinModel patch T5: the worker has finished, so the listener can go live before the
+            // recorded events are replayed; the replayed events forward to that same listener
+            smtListener.goLive(new MethodProverSMT.SMTListener(log, translated.smt.smtConfig.defaultPrinter));
             for (Runnable r: new ArrayList<>(executionEvents)) r.run();
             executionEvents.clear();
-            smtListener.goLive(new MethodProverSMT.SMTListener(log, translated.smt.smtConfig.defaultPrinter));
             return ex;
         }
 
@@ -132,16 +139,18 @@ public class EscPrefetcher {
         }
     }
 
-    /** An SMT log listener that records (into a sink) until it is told where to forward */
+    /** An SMT log listener that records (into a sink) until it is told where to forward.
+     * Recorded events forward, when replayed, to replayTarget (set before each replay). */
     static class RecordingSMTListener implements org.smtlib.Log.IListener {
         volatile List<Runnable> sink;
         volatile org.smtlib.Log.IListener live;
+        volatile org.smtlib.Log.IListener replayTarget;
         RecordingSMTListener(List<Runnable> sink) { this.sink = sink; }
-        void goLive(org.smtlib.Log.IListener l) { live = l; }
+        void goLive(org.smtlib.Log.IListener l) { replayTarget = l; live = l; }
         private void add(java.util.function.Consumer<org.smtlib.Log.IListener> c) {
             org.smtlib.Log.IListener l = live;
             if (l != null) c.accept(l);
-            else sink.add(() -> c.accept(live));
+            else sink.add(() -> c.accept(replayTarget));
         }
         @Override public void logOut(String msg) { add(l -> l.logOut(msg)); }
         @Override public void logOutNoln(String msg) { add(l -> l.logOutNoln(msg)); }
