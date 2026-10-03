@@ -15680,11 +15680,6 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 						call.type = call.sym.type;
 						rhs = M.at(that).Apply(null, call, List.<JCExpression>of(rhs)).setType(syms.stringType);
 					}
-					// FinModel patch O (ISSUE-1467): Java's + converts a null String operand to "null";
-					// the model concat(s1,s2) requires both non-null, so a nullable operand used to
-					// produce a spurious precondition failure.
-					if (lhs == that.getLeftOperand()) lhs = nullToNullString(lhs);
-					if (rhs == that.getRightOperand()) rhs = nullToNullString(rhs);
 					JCFieldAccess call = M.Select(id, names.fromString("concat"));
 					call.sym = s;
 					call.type = s.type;
@@ -24957,22 +24952,6 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			addStat(bl);
 		}
 		return null;
-	}
-
-	/** FinModel patch O: for a String-typed variable or field operand of string concatenation that
-	 *  may be null, returns (e == null ? "null" : e) -- Java's string conversion of a null
-	 *  reference. The operand is a side-effect-free variable reference, so evaluating it twice is
-	 *  harmless. Other operands are returned unchanged. */
-	protected JCExpression nullToNullString(JCExpression e) {
-		JCExpression ee = e;
-		while (ee instanceof JCParens p) ee = p.expr;
-		Symbol sym = ee instanceof JCIdent id ? id.sym : ee instanceof JCFieldAccess fa ? fa.sym : null;
-		if (!(sym instanceof VarSymbol vsym) || specs.isNonNull(vsym)) return e;
-		JCExpression cond = treeutils.makeEqNull(e.pos, copy(e));
-		JCExpression lit = treeutils.makeStringLiteral(e.pos, "null");
-		JCConditional c = M.at(e.pos).Conditional(cond, lit, copy(e));
-		c.type = syms.stringType;
-		return c;
 	}
 
 	public boolean isHeapIndependent(MethodSymbol msym) {
