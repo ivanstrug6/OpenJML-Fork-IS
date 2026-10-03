@@ -100,6 +100,13 @@ public class JmlEsc extends JmlTreeScanner {
     
     /** The assertion adder instance used to translate */
     public JmlAssertionAdder assertionAdder;
+
+    /** FinModel patch T5: runs solver sessions of upcoming methods concurrently (null = sequential) */
+    public EscPrefetcher prefetcher = null;
+    /** FinModel patch T5: when non-null, the visitor only records (in order) the methods it would prove */
+    protected java.util.List<JmlMethodDecl> planning = null;
+    /** FinModel patch T5: set while planning if an @Options annotation is seen (options could then vary per method) */
+    protected boolean planSawOptions = false;
     
     /** The JmlEsc constructor, which initializes all the tools and other fields. */
     public JmlEsc(Context context) {
@@ -139,8 +146,39 @@ public class JmlEsc extends JmlTreeScanner {
 			if (nerrors != log.nerrors) {
 				throw new PropagatedException(new RuntimeException());
 			}
+            // FinModel patch T5: first determine, without proving anything, which methods will be proved
+            // and in which order, so that their solver sessions can run ahead of time concurrently.
+            int threads = EscPrefetcher.threads(context);
+            if (threads > 1 && EscPrefetcher.allowedByOptions(context, this)) {
+                String proverToUse = pickProver(context);
+                String exec = null;
+                boolean execOK = false;
+                java.util.List<JmlMethodDecl> plan = new java.util.ArrayList<>();
+                planSawOptions = false;
+                Log.DiagnosticHandler discard = new Log.DiscardDiagnosticHandler(log);
+                try {
+                    planning = plan;
+                    tree.accept(this);
+                    // An unusable executable is reported (not here) when each method is proved, so
+                    // such a run stays sequential. A null exec is usable: jSMTLIB then resolves the
+                    // executable from the solver name.
+                    execOK = MethodProverSMT.checkProverExec(proverToUse, context);
+                    if (execOK) exec = MethodProverSMT.pickProverExec(proverToUse, context);
+                } finally {
+                    planning = null;
+                    log.popDiagnosticHandler(discard);
+                }
+                if (plan.size() > 1 && !planSawOptions && execOK) {
+                    prefetcher = new EscPrefetcher(this, plan, threads, proverToUse, exec);
+                }
+            }
             // And then we walk the tree to see which items are to be proved
-            tree.accept(this);
+            try {
+                tree.accept(this);
+            } finally {
+                if (prefetcher != null) prefetcher.shutdown();
+                prefetcher = null;
+            }
         } catch (PropagatedException e) {
             Throwable cause = e.getCause();
             if (cause instanceof Main.JmlCanceledException ce) {
@@ -180,6 +218,16 @@ public class JmlEsc extends JmlTreeScanner {
     @Override
     public void visitClassDef(JCClassDecl node) {
         if (debugEsc) System.out.println("[esc] Class: " + node.sym.owner + " " + node.name);
+        if (planning != null) { // FinModel patch T5: planning pass - no output, no counts
+            if (hasOptionsAnnotation(node.mods)) planSawOptions = true;
+            JmlOptions.instance(context).pushOptions(node.mods);
+            try {
+                visitDefsInOrder(node);
+            } finally {
+                JmlOptions.instance(context).popOptions();
+            }
+            return;
+        }
         boolean savedMethodsOK = allMethodsOK;
         allMethodsOK = true;
         JmlOptions.instance(context).pushOptions(node.mods);
@@ -188,6 +236,25 @@ public class JmlEsc extends JmlTreeScanner {
         //System.out.println("ABOUT TO P{RINT " + JmlOption.VERBOSENESS.getInt(context) + " " + utils.jmlverbose);
         utils.progress(0,Utils.PROGRESS,"Proving methods in " + utils.classQualifiedName(node.sym) ); //$NON-NLS-1$
         long classStart = System.currentTimeMillis();
+        visitDefsInOrder(node);
+        long classDuration = System.currentTimeMillis() - classStart;
+        utils.progress(0,Utils.PROGRESS,"Completed proving methods in " + utils.classQualifiedName(node.sym) +  //$NON-NLS-1$
+                (utils.testingMode || !JmlOption.SHOW_SUMMARY.isSet(context) ? "" : String.format(" [%4.2f secs]", (classDuration/1000.0)))); //$NON-NLS-1$
+        {
+            classes++;
+            if (allMethodsOK) classesOK++;
+        }
+        allMethodsOK = savedMethodsOK;
+        JmlOptions.instance(context).popOptions();
+    }
+
+    /** FinModel patch T5: whether the modifiers carry an @Options annotation */
+    protected boolean hasOptionsAnnotation(JCTree.JCModifiers mods) {
+        return mods != null && utils.findMod(mods, com.sun.tools.javac.util.Names.instance(context).fromString("org.jmlspecs.annotation.Options")) != null;
+    }
+
+    /** Visits the members of a class in the order in which they are proved (factored out of visitClassDef) */
+    protected void visitDefsInOrder(JCClassDecl node) {
         boolean doDefsInSortedOrder = true;
         if (doDefsInSortedOrder && !utils.testingMode) { // Don't sort in tests because too many golden outputs were created before sorting
             scan(node.mods);
@@ -208,15 +275,6 @@ public class JmlEsc extends JmlTreeScanner {
         } else {
             super.visitClassDef(node);
         }
-        long classDuration = System.currentTimeMillis() - classStart;
-        utils.progress(0,Utils.PROGRESS,"Completed proving methods in " + utils.classQualifiedName(node.sym) +  //$NON-NLS-1$
-                (utils.testingMode || !JmlOption.SHOW_SUMMARY.isSet(context) ? "" : String.format(" [%4.2f secs]", (classDuration/1000.0)))); //$NON-NLS-1$
-        {
-            classes++;
-            if (allMethodsOK) classesOK++;
-        }
-        allMethodsOK = savedMethodsOK;
-        JmlOptions.instance(context).popOptions();
     }
     
     /** When we visit a method declaration, we translate and prove the method;
@@ -250,14 +308,19 @@ public class JmlEsc extends JmlTreeScanner {
         // Do any nested classes and methods first (which will recursively call visitMethodDef)
         super.visitMethodDef(methodDecl);
 
+        if (planning != null && hasOptionsAnnotation(methodDecl.mods)) planSawOptions = true;
         if (skip(methodDecl)) {
-            markMethodSkipped(methodDecl," (excluded by skipesc)"); //$NON-NLS-1$
+            if (planning == null) markMethodSkipped(methodDecl," (excluded by skipesc)"); //$NON-NLS-1$
             return;
         }
 
         var reason = utils.filter(methodDecl);
         if (reason != null) {
-            markMethodSkipped(methodDecl," (" + reason + ")"); //$NON-NLS-1$ // FIXME excluded by -method or -exclude
+            if (planning == null) markMethodSkipped(methodDecl," (" + reason + ")"); //$NON-NLS-1$ // FIXME excluded by -method or -exclude
+            return;
+        }
+        if (planning != null) { // FinModel patch T5: record instead of proving
+            if (wouldProve(methodDecl)) planning.add(methodDecl);
             return;
         }
 
@@ -321,6 +384,16 @@ public class JmlEsc extends JmlTreeScanner {
 
     public void abort() {
         if (currentMethodProver != null) currentMethodProver.abort();
+        EscPrefetcher p = prefetcher;
+        if (p != null) p.shutdown();
+    }
+
+    /** FinModel patch T5: the conditions under which doMethod calls the prover (mirrors doMethod) */
+    protected boolean wouldProve(JmlMethodDecl methodDecl) {
+        boolean isConstructor = methodDecl.sym.isConstructor();
+        boolean doEsc = methodDecl.body != null || !org.jmlspecs.openjml.JmlOption.FEASIBILITY.includes(context, org.jmlspecs.openjml.Strings.feas_none);
+        if (methodDecl.sym.owner == syms.objectType.tsym && isConstructor) doEsc = false;
+        return !skip(methodDecl) && doEsc;
     }
     
     /** Do the actual work of proving the method */

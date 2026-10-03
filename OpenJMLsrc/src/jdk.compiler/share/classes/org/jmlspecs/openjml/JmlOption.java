@@ -411,6 +411,28 @@ public class JmlOption {
     public static final JmlOption COUNTEREXAMPLE = new JmlOption("--counterexample",false,false,"ESC: Enables output of complete, raw counterexample",null);
     { map.put("-ce",COUNTEREXAMPLE); }
     public static final JmlOption SUBEXPRESSIONS = new JmlOption("--subexpressions",false,false,"ESC: Enables tracing with subexpressions",null);
+    // FinModel patch T5: number of solver sessions run concurrently by ESC (1 = strictly sequential);
+    // 0 (the default) means the number of available processors. Output and results do not depend on it.
+    public static final JmlOption ESC_THREADS = new JmlOption("--esc-threads",true,"0","ESC: Number of concurrent solver sessions (0 = number of available processors, 1 = sequential)",null) {
+        public boolean check(Context context, boolean negate) {
+            String v = JmlOption.ESC_THREADS.value(context);
+            try {
+                if (Integer.parseInt(v.trim()) >= 0) return true;
+            } catch (NumberFormatException e) {
+                // fall through
+            }
+            clError(context, "Expected a non-negative integer as argument for --esc-threads: " + v);
+            return false;
+        }
+        public int getInt(Context context) {
+            try {
+                int n = Integer.parseInt(JmlOption.ESC_THREADS.value(context).trim());
+                return n > 0 ? n : Math.max(1, Runtime.getRuntime().availableProcessors());
+            } catch (Exception e) {
+                return 1;
+            }
+        }
+    };
     public static final JmlOption FEASIBILITY = new JmlOption("--check-feasibility",true,"none","ESC: Check feasibility of assumptions",null) {
         public boolean check(Context context, boolean negate) {
             JmlOptions options = JmlOptions.instance(context);
