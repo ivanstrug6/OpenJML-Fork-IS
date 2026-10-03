@@ -950,7 +950,7 @@ public class escTiming extends EscBase {
                   public long g(long x, long y, long z) { return x*x*x*y*y*z - 3*x*y*z*z + 7; }
                 }
                 """
-                ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: canceled",15
+                ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: \"canceled\"",15
                 );
     }
 }
