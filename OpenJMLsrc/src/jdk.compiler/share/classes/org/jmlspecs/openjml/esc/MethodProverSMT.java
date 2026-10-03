@@ -680,7 +680,8 @@ public class MethodProverSMT {
                                     String msg3 = "Aborted feasibility check: ";
                                     String msg4 = smt.smtConfig.defaultPrinter.toString(value);
                                     unknownReason = smt.smtConfig.responseFactory.error(msg2);
-                                    boolean timeout = msg4.contains("timeout");
+                                    // FinModel patch T3: z3 >= 4.4 reports a soft (-t) timeout of an incremental query as "canceled"
+                                    boolean timeout = msg4.contains("timeout") || msg4.contains("canceled");
                                     if (timeout) {
                                         utils.verify(methodDecl,"esc.resourceout.feasibility",": " + msg3 + msg4);
                                         proofResult = factory.makeProverResult(methodDecl,proverToUse,IProverResult.TIMEOUT,start);
@@ -733,7 +734,8 @@ public class MethodProverSMT {
                             } else {
                                 String msg = "Aborted proof: " + smt.smtConfig.defaultPrinter.toString(value);
                                 unknownReason = smt.smtConfig.responseFactory.error(msg);
-                                boolean timeout = msg.contains("timeout");
+                                // FinModel patch T3: z3 >= 4.4 reports a soft (-t) timeout of an incremental query as "canceled"
+                                boolean timeout = msg.contains("timeout") || msg.contains("canceled");
                                 if (timeout) {
                                 	utils.verify(methodDecl,"esc.resourceout",": " + msg);
                                 	if (!haveFailedAssertion) proofResult = factory.makeProverResult(methodDecl,proverToUse,IProverResult.TIMEOUT,start);
