@@ -931,7 +931,26 @@ public class escTiming extends EscBase {
 //                ,"/tt/TestJava.java:677: warning: Switch case apparently never taken in method m5b(int)",7
 //                ,"/tt/TestJava.java:678: warning: Switch case apparently never taken in method m5b(int)",7
 //                ,"/tt/TestJava.java:681: warning: Switch case apparently never taken in method m5b(int)",7
-//                                                                                                                    
+//
+                );
+    }
+
+    // A proof that reaches the time limit is reported as a time-limit abort (a timeout), never as
+    // a missing model.
+    @Test
+    public void testTimeoutCanceledIsTimeout() {
+        // Java arithmetic keeps the range-check diagnostics (which depend on timing) out of the output.
+        addOptions("--timeout=1", "--code-math=java", "--spec-math=java");
+        helpEsc("tt.Hard",
+                """
+                package tt;
+                public class Hard {
+                  //@ requires 1 < x && x < 100000 && 1 < y && y < 100000 && 1 < z && z < 100000;
+                  //@ ensures \\result != 0;
+                  public long g(long x, long y, long z) { return x*x*x*y*y*z - 3*x*y*z*z + 7; }
+                }
+                """
+                ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: canceled",15
                 );
     }
 }
