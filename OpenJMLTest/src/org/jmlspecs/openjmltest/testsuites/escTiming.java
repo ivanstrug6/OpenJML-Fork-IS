@@ -953,4 +953,21 @@ public class escTiming extends EscBase {
                 ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: \"canceled\"",15
                 );
     }
+
+    // The bound exists because every SMT command sent to the solver must not carry a fixed per-command wait (~1 ms each).
+    @Test
+    public void testPerCommandSolverOverhead() {
+        final int N = 10000;
+        final long BOUND_MS = 18000L;
+        addOptions("--esc-threads=1");
+        StringBuilder sb = new StringBuilder();
+        sb.append("package tt;\npublic class Many {\n  //@ requires 0 <= x && x < 1000;\n  public void m(int x) {\n");
+        for (int k = 0; k < N; k++) sb.append("    //@ assert x + ").append(k).append(" >= ").append(k).append(";\n");
+        sb.append("  }\n}\n");
+        long t0 = System.nanoTime();
+        helpEsc("tt.Many", sb.toString());
+        long ms = (System.nanoTime() - t0) / 1000000L;
+        System.out.println("PER-COMMAND-OVERHEAD helpEsc wall ms = " + ms);
+        Assert.assertTrue("trivial " + N + "-assert proof took " + ms + " ms, bound " + BOUND_MS + " ms", ms < BOUND_MS);
+    }
 }
