@@ -126,7 +126,7 @@ public class EscPrefetcher {
                 execution = ex;
                 ex.start = new java.util.Date();
                 // Same solver selection as MethodProverSMT.prove; a null exec lets jSMTLIB resolve it from the solver name
-                ex.solver = translated.smt.startSolver(translated.smt.smtConfig,MethodProverSMT.smtSolverName(proverToUse),exec);
+                ex.solver = SolverStarter.startSolver(translated.smt,translated.smt.smtConfig,MethodProverSMT.smtSolverName(proverToUse),exec); // FinModel patch U
             }
             if (ex.solver == null) return ex;
             try {

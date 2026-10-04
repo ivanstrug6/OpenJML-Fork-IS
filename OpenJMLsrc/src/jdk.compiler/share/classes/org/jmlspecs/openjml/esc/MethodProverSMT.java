@@ -408,7 +408,7 @@ public class MethodProverSMT {
             start = ex != null ? ex.start : new Date();
             //setBenchmark(proverToUse,methodDecl.name.toString(),smt.smtConfig);
             String smtProver = smtSolverName(proverToUse);
-            if (ex == null) solver = smt.startSolver(smt.smtConfig,smtProver,exec); // Argument is the SMT library adapter
+            if (ex == null) solver = SolverStarter.startSolver(smt,smt.smtConfig,smtProver,exec); // FinModel patch U // Argument is the SMT library adapter
             if (solver == null) {
             	//log.error("jml.solver.failed.to.start",exec);
                 JCDiagnostic d = utils.errorDiag(log.currentSource(), null, "jml.solver.failed.to.start",exec != null ? exec : smtProver);
@@ -523,7 +523,7 @@ public class MethodProverSMT {
                         }
                        
                         if (!usePushPop) {
-                            solver2 = smt.startSolver(smt.smtConfig,smtSolverName(proverToUse),exec);
+                            solver2 = SolverStarter.startSolver(smt,smt.smtConfig,smtSolverName(proverToUse),exec); // FinModel patch U
                             if (JmlAssertionAdder.useAssertCount) {
                                 List<ICommand> commands = script.commands();
                                 commands.remove(commands.size()-1);
