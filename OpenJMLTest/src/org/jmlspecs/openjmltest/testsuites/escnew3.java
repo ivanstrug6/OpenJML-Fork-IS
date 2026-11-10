@@ -2289,4 +2289,95 @@ public class escnew3 extends EscBase {
                 ,"/tt/B.java:3: verify: Associated declaration",7
                 );
     }
+
+    // An invariant that quantifies over a pure method of this and calls another pure method of this
+    // is translated once; the invariant-recursion guard stays intact, so no internal error results.
+    // The four warnings are the build's ordinary purity and recursive-invariant diagnostics for this shape.
+    @Test
+    public void testPatchAB_InvariantRecursionGuard() {
+        helpEsc("AB2",
+                """
+                import java.util.List;
+                public interface AB2 {
+                    /*@ public invariant (\\forall String name; names().contains(name); has(name)); @*/
+
+                    /*@ public normal_behavior
+                      @   requires n != null;
+                      @   ensures \\result <==> names().contains(n);
+                      @ pure @*/
+                    boolean has(String n);
+
+                    /*@ public normal_behavior
+                      @   ensures \\result != null;
+                      @ pure @*/
+                    List<String> names();
+                }
+                """
+                ,"/AB2.java:3: warning: A non-pure method is being called where it is not permitted: AB2.names()",53
+                ,"/AB2.java:7: warning: A non-pure method is being called where it is not permitted: AB2.names()",37
+                ,"/AB2.java:3: warning: Recursive attempt to assert or assume invariants - use pure helper methods: AB2",53
+                ,"/AB2.java:3: warning: Recursive attempt to assert or assume invariants - use pure helper methods: AB2",75
+                );
+    }
+
+    // An annotation-type member with a String default value is translated without an internal error.
+    @Test
+    public void testPatchD1_AnnotationDefaultLiteral() {
+        helpEsc("D1m",
+                """
+                public @interface D1m {
+                    String name() default "";
+                }
+                """
+                );
+    }
+
+    // An implements-clause naming a nested interface is access-checked without an internal error.
+    @Test
+    public void testPatchE_NestedInterfaceImplements() {
+        helpEsc("E3",
+                """
+                public class E3 {
+                    public interface Inner { }
+                }
+
+                final class Impl implements E3.Inner { }
+                """
+                );
+    }
+
+    // A try-with-resources inside a loop with a loop_writes frame does not report the synthesized
+    // resource local as missing from the frame clause. The Assignable-everything verify pair is
+    // the ordinary result of AutoCloseable.jml's close() specification, a separate issue.
+    @Test
+    public void testPatchG_TryWithResourcesLoopFrame() {
+        helpEsc("G2",
+                """
+                public class G2 {
+                    static final class Res implements AutoCloseable {
+                        /*@ normal_behavior ensures true; pure @*/
+                        Res() { }
+                        /*@ also normal_behavior assignable \\nothing; @*/
+                        @Override public void close() { }
+                    }
+
+                    /*@ normal_behavior requires n >= 0; assignable \\nothing; @*/
+                    static int count(int n) {
+                        int c = 0;
+                        //@ maintaining 0 <= i <= n && c == i;
+                        //@ loop_writes c;
+                        //@ decreases n - i;
+                        for (int i = 0; i < n; i++) {
+                            try (Res r = new Res()) {
+                                c++;
+                            }
+                        }
+                        return c;
+                    }
+                }
+                """
+                ,"/G2.java:16: verify: The prover cannot establish an assertion (Assignable) in method count: \\everything",22
+                ,"/G2.java:13: verify: Associated declaration",13
+                );
+    }
 }
