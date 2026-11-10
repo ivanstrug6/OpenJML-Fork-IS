@@ -165,7 +165,16 @@ public class JmlTypes extends Types {
     public boolean isAssignable(Type t, Type s, Warner warn) {
         //if (isJmlType(s) || isJmlType(t)) System.out.println("ISASSIGNABLE " + t + " " + s);
         if (s == t) return true;
-        if (isSameType(s,t)) return true;
+        // FinModel patch C1b: take the isSameType shortcut only for JML primitive types.
+        // For Java types super.isAssignable already accepts identical types, and the shortcut
+        // is not side-effect free during inference: isSameType(s, t) with an inference variable
+        // (UndetVar) on either side records an EQUALITY bound (e.g. T == Object from a receiver
+        // or return check, T == String from an argument), where stock javac records only the
+        // subtype bound. That over-constrained inference, producing false errors such as
+        // 'inference variable T has incompatible equality constraints Object,String',
+        // 'ArrayList<E> cannot be converted to List<String>' (diamonds in argument position)
+        // and 'cannot find symbol' on the result of a generic call (T inferred as Object).
+        if ((isJmlType(s) || isJmlType(t)) && isSameType(s,t)) return true;
         if (!javaOnly) {
             if (s.tsym == BIGINTsym) {
                 if (isJavaIntegral(t)) return true;

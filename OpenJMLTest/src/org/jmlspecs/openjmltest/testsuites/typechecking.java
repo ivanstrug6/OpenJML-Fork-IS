@@ -2176,4 +2176,58 @@ public class typechecking extends TCBase {
             ,"/A.java:4: error: incompatible types: bad type in conditional expression\n    int cannot be converted to java.util.List<java.lang.String>",67
         );
     }
+
+    /** FinModel patch C1b (ISSUE-1261/1621/920): plain-Java generic inference must match stock javac.
+     *  Before the patch (a) JmlTypes.isAssignable's isSameType shortcut recorded EQUALITY bounds on
+     *  inference variables (T inferred as Object for 'one(x).foo()', 'var r = one(s)'; 'incompatible
+     *  equality constraints'), and (b) JmlArgumentAttr treated a diamond 'new C<>()' argument as a
+     *  standalone expression ('ArrayList<E> cannot be converted to List<String>', 'incompatible bounds').
+     *  All of these must type-check with no errors, as with javac. */
+    @Test public void testGenericInferenceMatchesJavac() {
+        helpTCText("A.java",
+            """
+            import java.util.*;
+            import java.util.function.*;
+            import java.util.stream.*;
+            public class A {
+              record Wc(List<String> cells, List<Integer> regions) {}
+              static <C extends Collection<?>> C requireNonEmpty(C c) { return c; }
+              static <T> T one(T d) { return d; }
+              final Map<String, List<String>> m = new HashMap<>();
+              final List<String> refs = new ArrayList<>();
+              int foo() { return 1; }
+              public List<String> a(Collection<String> x) { return Collections.unmodifiableList(new ArrayList<>(x)); }
+              public Set<String> b(Collection<String> x) { return Collections.unmodifiableSet(new LinkedHashSet<>(x)); }
+              public Map<String, Set<String>> c(Map<String, Set<String>> x) { return Collections.unmodifiableMap(new HashMap<>(x)); }
+              public void d(String k) { m.put(k, new ArrayList<>()); m.putIfAbsent(k, new ArrayList<>(refs)); }
+              public void e(String k) { m.computeIfAbsent(k, z -> new ArrayList<>()).add(k); }
+              public Wc f() { return new Wc(new ArrayList<>(), new ArrayList<>()); }
+              public Set<String> g(List<String> l) { return l.stream().collect(Collectors.toCollection(LinkedHashSet::new)); }
+              public List<List<Integer>> h() { return Arrays.asList(Arrays.asList(1, 2), new ArrayList<>()); }
+              public int i(List<String> l) { return requireNonEmpty(l).size() + one(this).foo(); }
+              public void j(List<String> l) { Collections.sort(l); l.sort(Comparator.naturalOrder()); }
+              public Map<String, List<String>> k(Map<String, List<String>> x) { return new HashMap<>(new TreeMap<>(x)); }
+              public Comparator<String> l(boolean b) { return one(new Comparator<>() { public int compare(String p, String q) { return 0; } }); }
+              public Optional<List<String>> n(boolean b) { return Optional.of(b ? new ArrayList<>() : List.of("a")); }
+              public int o(String s) { var r = one(s); return r.length() + Objects.requireNonNull(s).length(); }
+            }
+            """
+        );
+    }
+
+    /** FinModel patch C1b: genuine inference failures must still be reported, as javac reports them. */
+    @Test public void testGenericInferenceErrorsStillReported() {
+        helpTCText("A.java",
+            """
+            import java.util.*;
+            public class A {
+              static <T> T one(T d) { return d; }
+              static int f(List<String> l) { return 0; }
+              public void m() { List<Integer> li = one(new ArrayList<String>()); int k = f(new ArrayList<>(Set.of(1))); }
+            }
+            """
+            ,"/A.java:5: error: incompatible types: inference variable T has incompatible bounds\n    upper bounds: java.util.List<@org.jmlspecs.annotation.NonNull java.lang.Integer>,java.lang.Object\n    lower bounds: java.util.ArrayList<java.lang.String>",43
+            ,"/A.java:5: error: incompatible types: cannot infer type arguments for java.util.ArrayList<>\n    reason: inference variable E has incompatible bounds\n      equality constraints: java.lang.String\n      lower bounds: E,java.lang.Integer",93
+        );
+    }
 }
