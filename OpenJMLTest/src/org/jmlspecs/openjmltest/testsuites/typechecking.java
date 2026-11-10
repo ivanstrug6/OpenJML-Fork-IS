@@ -2125,4 +2125,55 @@ public class typechecking extends TCBase {
                 ,"/Test.java:3: error: ';' expected", 14
         );
     }
+
+    /** FinModel patch C1 (ISSUE-442/1488/1593): a conditional in method/constructor-argument
+     *  position is a poly expression whose branches are attributed speculatively (possibly with
+     *  DEFERRED types). JmlAttr.visitConditional used to re-run condType on it unconditionally,
+     *  aborting with 'AssertionError: isSameType DEFERRED' / 'isSubtype DEFERRED'.
+     *  Must type-check with no errors, exactly as stock javac does. */
+    @Test public void testPolyConditionalArgs() {
+        helpTCText("A.java",
+            """
+            import java.util.*;
+            import java.util.function.*;
+            public class A {
+              final List<String> l;
+              A(String t, List<String> l, Object o) { this.l = l; }
+              static int f(List<String> l) { return 0; }
+              static int fm(Map<String,Integer> m) { return 0; }
+              static int fc(Collection<String> m) { return 0; }
+              static int ap(Function<String,Integer> f) { return 0; }
+              static Object inert(Object o) { return o; }
+              static <T> T orElse(T a, T b) { return a != null ? a : b; }
+              public int g1(List<String> c) { return f(c == null ? List.of() : c); }
+              public A g2(List<String> c) { return new A("x", c == null ? List.of() : c, null); }
+              public int g3(Map<String,Integer> m, Collection<String> d) { return fm(m == null ? Map.of() : m) + fc(d == null ? Set.of() : d); }
+              public int g4(List<String> a, List<String> b, int k) { return f(k == 0 ? a : k == 1 ? b : List.of()); }
+              public int g5(int k) { return Math.max(k > 0 ? k : k < -5 ? 0 : -k, 1); }
+              public void g6(List<Object> ch, Object cv, Object c) { ch.add(cv != null ? cv : inert(c)); }
+              public int g7(boolean b, boolean c) { return ap(b ? s -> s.length() : String::hashCode) + ap(b ? s -> 1 : c ? s -> 2 : String::length); }
+              public int g8(int k, List<String> c) { return f(k > 0 ? c : switch (k) { case 0 -> List.of(); default -> Collections.emptyList(); }); }
+              public int g9(List<String> c) { return f(c != null ? c : Collections.emptyList()); }
+              public String g10(String s) { String r = orElse(s == null ? "" : s, "q"); return r; }
+              public List<List<String>> g11(List<String> a, boolean b) { return Arrays.asList(b ? a : List.of(), a); }
+              public Optional<String> g12(Optional<String> o, boolean b) { return o.map(b ? String::trim : s -> s); }
+            }
+            """
+        );
+    }
+
+    /** FinModel patch C1: a conditional whose branches do not fit the argument's target type must
+     *  still be reported (the fix must not suppress genuine type errors). */
+    @Test public void testPolyConditionalArgsError() {
+        helpTCText("A.java",
+            """
+            import java.util.*;
+            public class A {
+              static int f(List<String> l) { return 0; }
+              public int g(List<String> c) { return f(c == null ? List.of() : 5); }
+            }
+            """
+            ,"/A.java:4: error: incompatible types: bad type in conditional expression\n    int cannot be converted to java.util.List<java.lang.String>",67
+        );
+    }
 }
