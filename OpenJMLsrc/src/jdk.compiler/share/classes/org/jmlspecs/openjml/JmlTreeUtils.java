@@ -1801,9 +1801,13 @@ public class JmlTreeUtils {
         } catch (java.util.NoSuchElementException e) {
             // fall through to error message
         }
-        System.out.println("NO MATCH " + name + " " + receiver + " " + receiver.type + " " + nargs + " " + (nargs.length > 0 ? nargs[0].type.toString() : ""));
+        // FinModel patch N: the failure is reported as a jml.internal error just below; the raw stdout
+        // print and stack dump were debug noise interleaved with normal output.
+        if (print || utils.jmlverbose >= Utils.JMLDEBUG) {
+            System.out.println("NO MATCH " + name + " " + receiver + " " + receiver.type + " " + nargs + " " + (nargs.length > 0 ? nargs[0].type.toString() : ""));
+            Utils.dumpStack();
+        }
         utils.error(pos, "jml.internal", "No method " + name + " with " + nargs.length + " parameters of the requested types found in type " + receiver.type + "\n" + s);
-        Utils.dumpStack();
         return null;
     }
     

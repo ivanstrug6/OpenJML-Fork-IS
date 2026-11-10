@@ -587,4 +587,23 @@ public class escstrings extends EscBase {
                 """);
     }
 
+
+    /** FinModel patch O (ISSUE-1467): a null String operand of + contributes "null" (4 chars). */
+    @Test
+    public void testStringConcatNullIsNullString() {
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ requires a == null && b != null && b.length() == 2;
+                    //@ ensures \\result.length() == 6;
+                    public static String c1(/*@ nullable */ String a, /*@ nullable */ String b) { return a + b; }
+                    //@ requires a == null;
+                    //@ ensures \\result.length() == 5;
+                    public static String c2(/*@ nullable */ String a) { return a + "xy"; } // wrong: 6
+                }
+                """
+                ,"/tt/A.java:8: verify: The prover cannot establish an assertion (Postcondition) in method c2",57
+                ,"/tt/A.java:7: verify: Associated declaration",9
+                );
+    }
 }

@@ -2254,8 +2254,9 @@ public class escnew3 extends EscBase {
                 }
                 """
                 ,"/tt/A.java:4: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.A.null)",31
-                ,"/tt/B.java:7: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m())",16
-                ,"/tt/B.java:7: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m2())",16
+                // FinModel patch M: these positions are in A.java (they were misattributed to B.java:7)
+                ,"/tt/A.java:4: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m())",31
+                ,"/tt/A.java:4: warning: Use a static_initializer clause to specify the values of static final fields: tt.A.EMPTY (translating tt.B.m2())",31
                 ,"/tt/B.java:4: verify: The prover cannot establish an assertion (Postcondition) in method m",27
                 ,"/tt/B.java:3: verify: Associated declaration",7
                 );

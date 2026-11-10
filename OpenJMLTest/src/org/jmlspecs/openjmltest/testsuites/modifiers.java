@@ -1334,7 +1334,8 @@ public class modifiers extends TCBase {
                   //@ public requires true;
                   void m() {} }
                 """
-                ,"/A.java:2: error: No modifiers are allowed prior to a lightweight specification case",7
+                // Message reworded by the fork's accumulated patch set (18b51bc01); same error, same position
+                ,"/A.java:2: error: JML modifier 'public' may not prefix a lightweight specification case. Place the modifier on the Java declaration (e.g., 'public /*@ public @*/ Type m();') or as a separate annotation block immediately before the declaration (e.g., '/*@ public @*/').",7
                 );
     }
 
@@ -1345,7 +1346,8 @@ public class modifiers extends TCBase {
                   //@ pure requires true;
                   void m() {} }
                 """
-                ,"/A.java:2: error: No modifiers are allowed prior to a lightweight specification case",7
+                // Message reworded by the fork's accumulated patch set (18b51bc01); same error, same position
+                ,"/A.java:2: error: JML modifier 'pure' may not prefix a lightweight specification case. Place the modifier on the Java declaration (e.g., 'public /*@ pure @*/ Type m();') or as a separate annotation block immediately before the declaration (e.g., '/*@ pure @*/').",7
                 );
     }
 

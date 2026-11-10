@@ -694,6 +694,23 @@ public class SMTTranslator extends JmlTreeScanner {
             if ((ti.tsym.flags() & Flags.FINAL) != 0) {
             	if (quantOK) addCommand(smt,"(assert (forall ((t "+JAVATYPESORT+")) (=> ("+JAVASUBTYPE+" t "+tisym.toString()+")  (= t "+tisym.toString()+"))))");
             }
+            // FinModel patch P: a sealed type's only subtypes are itself and its permitted subtypes
+            // (Java's exhaustiveness guarantee), analogous to the final-type axiom above.
+            if (quantOK && ti.tsym instanceof Symbol.ClassSymbol cs && (cs.flags() & Flags.SEALED) != 0 && !cs.permitted.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("(assert (forall ((t ").append(JAVATYPESORT).append(")) (=> (").append(JAVASUBTYPE).append(" t ")
+                  .append(tisym.toString()).append(") (or (= t ").append(tisym.toString()).append(")");
+                for (Symbol p: cs.permitted) {
+                    sb.append(" (").append(JAVASUBTYPE).append(" t ").append(javaTypeSymbol(p.type).toString()).append(")");
+                }
+                sb.append("))))");
+                addCommand(smt, sb.toString());
+                // No object's dynamic type is an interface or abstract class, so for those the
+                // disjunct (= t T) cannot be an object's type
+                if ((cs.flags() & (Flags.INTERFACE | Flags.ABSTRACT)) != 0) {
+                    addCommand(smt, "(assert (forall ((o " + REF + ")) (=> (distinct o " + NULL + ") (distinct (javaTypeOf o) " + tisym.toString() + "))))");
+                }
+            }
             if (!ti.tsym.type.isParameterized()) {
                 // Note: ti.isParameterized() is true if the type name has actual parameters
                 // ti.tsym.type.isParameterized() is true if the declaration has parameters
@@ -1526,6 +1543,11 @@ public class SMTTranslator extends JmlTreeScanner {
                 // We must record the bounds, but with caution since it can cause infinite recursion, in cases such as class Test<K extends Comparable<K>, O>
                 if (t.getTag()  == TypeTag.TYPEVAR && !(t instanceof Type.WildcardType)) {
                     addType( ((Type.TypeVar)t).getUpperBound() );
+                }
+                // FinModel patch P: the permitted subtypes of a sealed type are needed for its
+                // exhaustiveness axiom (see the type-axiom loop in convert)
+                if (t.tsym instanceof Symbol.ClassSymbol cs && (cs.flags() & Flags.SEALED) != 0) {
+                    for (Symbol p: cs.permitted) addType(p.type);
                 }
             }
             if (t.tsym.type.isParameterized()) { // true if is or should be parameterized

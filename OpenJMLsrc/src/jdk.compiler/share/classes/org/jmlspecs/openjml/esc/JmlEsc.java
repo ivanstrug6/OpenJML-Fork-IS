@@ -18,6 +18,7 @@ import org.jmlspecs.openjml.JmlOptions;
 import org.jmlspecs.openjml.JmlPretty;
 import org.jmlspecs.openjml.JmlSpecs;
 import org.jmlspecs.openjml.JmlTree.JmlMethodDecl;
+import org.jmlspecs.openjml.JmlTree.JmlClassDecl;
 import org.jmlspecs.openjml.Main;
 import org.jmlspecs.openjml.Strings;
 import org.jmlspecs.openjml.Utils;
@@ -124,7 +125,17 @@ public class JmlEsc extends JmlTreeScanner {
 //        	if (tree instanceof JmlCompilationUnit) System.out.println("  CU  " + ((JmlCompilationUnit)tree).sourcefile);
 //        	if (tree instanceof JmlClassDecl) System.out.println("  CL  " + ((JmlClassDecl)tree).sym + " " + ((JmlClassDecl)tree).sourcefile );
         	int nerrors = log.nerrors;
-            assertionAdder.convert(tree); // get at the converted tree through the map
+            // FinModel patch M: translate with the tree's own file as the log source, so diagnostics
+            // raised during translation (at positions in this tree) are attributed to the right file
+            // rather than to whichever file happened to be current (e.g. a class pulled in via -sourcepath).
+            JavaFileObject treeSource = tree instanceof JCCompilationUnit cu ? cu.sourcefile
+                    : tree instanceof JmlClassDecl cd ? cd.sourcefile : null;
+            JavaFileObject prevSource = treeSource == null ? null : log.useSource(treeSource);
+            try {
+                assertionAdder.convert(tree); // get at the converted tree through the map
+            } finally {
+                if (treeSource != null) log.useSource(prevSource);
+            }
 			if (nerrors != log.nerrors) {
 				throw new PropagatedException(new RuntimeException());
 			}

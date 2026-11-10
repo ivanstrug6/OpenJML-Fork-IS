@@ -3400,14 +3400,25 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 										doit = true;
 								}
 								if (doit) {
-									// JavaFileObject prevSource = log.useSource(clause.source());
+									// FinModel patch M: an invariant declared in another file is translated with
+									// that file as the log source, so diagnostics at positions inside the clause
+									// (warnings, internal errors) name the clause's own file, not the current one.
 									try {
 									    var cl = (JmlTypeClauseExpr)clause;
 										t = copy(cl); // FIXME - why copy the clause
 										addTraceableComment(t.expression, clause.toString());
-										JCExpression e = !rac || cl.racmethod == null || csym != basecsym
+										// FinModel patch M: the clause is translated with its own file as the log
+										// source (diagnostics at positions inside it); the resulting assume/assert is
+										// located at 'pos' in the current file, so the source is restored before that.
+										Object[] prevSource = useSourceOf(clause.source());
+										JCExpression e;
+										try {
+											e = !rac || cl.racmethod == null || csym != basecsym
 										                      ? convertJML(t.expression, treeutils.trueLit, isPost)
 										                      : treeutils.invMethodCall(currentEnv.currentReceiver, cl);
+										} finally {
+											restoreSource(prevSource);
+										}
 		                                addStat(comment(pos, (assume?"Assume":"Assert") + " invariant " + e, null));
 										if (assume)
 											addAssume(pos, invariantLabel, e, cpos, clause.sourcefile,
@@ -3421,7 +3432,6 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 										notImplemented(clause.clauseType.keyword() + " clause containing ", e,
 												clause.source());
 									} finally {
-										// log.useSource(prevSource);
 									}
 								}
 							}
@@ -4486,7 +4496,13 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 								|| (clause.modifiers.flags & Flags.ENUM) == 0) {
 							addStat(comment(clause));
 							JmlTypeClauseExpr t = (JmlTypeClauseExpr) clause;
-							JCExpression e = convertJML(t.expression);
+							Object[] prevSource = useSourceOf(clause.source()); // FinModel patch M
+							JCExpression e;
+							try {
+								e = convertJML(t.expression);
+							} finally {
+								restoreSource(prevSource);
+							}
 							addAssume(cpos, Label.AXIOM, e, cpos, clause.sourcefile);
 				            addFeasibilityCheck(clause, currentStatements, Strings.feas_methodaxioms, "after axiom " + t.expression);
 						}
@@ -4675,7 +4691,12 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 					if (alreadyDiscoveredFields.add(sym) && sym.owner instanceof ClassSymbol) {
 						JCFieldAccess newfa = treeutils.makeSelect(def.pos, treeutils.makeType(def.pos, sym.owner.type),
 								sym);
-						addFinalStaticField(newfa);
+						Object[] prevSource = useSourceOf(decl.sourcefile); // FinModel patch M
+						try {
+							addFinalStaticField(newfa);
+						} finally {
+							restoreSource(prevSource);
+						}
 					}
 //                    JCExpression e = vd.init;
 //                    if (e != null) {
@@ -4718,6 +4739,18 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 
 	}
 
+	/** FinModel patch M: makes 'src' the log source if it differs from the current one, so diagnostics
+	 *  at positions in a clause or declaration from another file (e.g. a static invariant of a class
+	 *  reached from the method being translated) name that file. Returns the token for restoreSource. */
+	protected Object[] useSourceOf(JavaFileObject src) {
+		if (src == null || src == log.currentSourceFile()) return null;
+		return new Object[] { log.useSource(src) };
+	}
+
+	protected void restoreSource(Object[] token) {
+		if (token != null) log.useSource((JavaFileObject) token[0]);
+	}
+
 	protected void assumeStaticInvariants(ClassSymbol csym) {
 		JmlSpecs.TypeSpecs tspecs = specs.getAttrSpecs(csym);
 		if (tspecs == null) {
@@ -4734,8 +4767,15 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 					continue;
 				if (!utils.jmlvisible(null, methodDecl.sym.owner, csym, t.modifiers.flags, methodDecl.mods.flags))
 					continue;
-				addAssume(methodDecl, Label.INVARIANT_ENTRANCE_ASSUMED,
-						convertJML(((JmlTypeClauseExpr) t).expression),
+				// FinModel patch M: translate the clause with its own file as the log source
+				Object[] prevSource = useSourceOf(t.source());
+				JCExpression e;
+				try {
+					e = convertJML(((JmlTypeClauseExpr) t).expression);
+				} finally {
+					restoreSource(prevSource);
+				}
+				addAssume(methodDecl, Label.INVARIANT_ENTRANCE_ASSUMED, e,
 						t, t.source(), utils.qualifiedMethodSig(methodDecl.sym));
 	            addFeasibilityCheck(t, currentStatements, Strings.feas_methodaxioms, "after static invariant: " + t);
 			}
