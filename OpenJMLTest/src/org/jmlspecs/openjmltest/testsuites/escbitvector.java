@@ -360,4 +360,52 @@ public class escbitvector extends EscBase {
           );
 
     }
+
+    /** FinModel patch K (ISSUE-2565): in bit-vector mode a char >= 0x8000 (here the static
+     *  constant '\\uFFFD', like java.lang.String.REPL) was widened with sign_extend, so the implicit
+     *  range assumption 0 <= (int)c <= 65535 was false and every proof became vacuous. The
+     *  ensures-false control must be reported. */
+    @Test
+    public void testCharWideningNotVacuous() {
+        addOptions("--esc-bv=true","--method=tt.TestJava.probe");
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static final char C = '\\uFFFD';
+                  //@ ensures false;
+                  static void probe() { return; }
+                }
+                """
+                ,"/tt/TestJava.java:5: verify: The prover cannot establish an assertion (Postcondition) in method probe",25
+                ,"/tt/TestJava.java:4: verify: Associated declaration",7
+                );
+    }
+
+    /** FinModel patch K (ISSUE-2565): char comparisons are unsigned (promoted to int). */
+    @Test
+    public void testCharCompareUnsigned() {
+        addOptions("--esc-bv=true");
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  //@ requires c == '\\uFFFD';
+                  //@ ensures \\result;
+                  static boolean cmp(char c) { return c > 'a'; }
+                  //@ requires c == '\\uFFFD' && d == 'a';
+                  //@ ensures \\result;
+                  static boolean cmp2(char c, char d) { return c > d; }
+                  //@ requires c == '\\uFFFD';
+                  //@ ensures \\result == 0xFFFD;
+                  static int widen(char c) { return c + 0; }
+                  //@ requires c == '\\uFFFD';
+                  //@ ensures \\result < 0;
+                  static int widenBad(char c) { return c + 0; } // pre-patch: vacuously proved
+                }
+                """
+                ,"/tt/TestJava.java:14: verify: The prover cannot establish an assertion (Postcondition) in method widenBad",33
+                ,"/tt/TestJava.java:13: verify: Associated declaration",7
+                );
+    }
 }
