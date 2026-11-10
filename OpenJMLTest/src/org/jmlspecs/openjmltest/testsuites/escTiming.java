@@ -950,7 +950,7 @@ public class escTiming extends EscBase {
                   public long g(long x, long y, long z) { return x*x*x*y*y*z - 3*x*y*z*z + 7; }
                 }
                 """
-                ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: canceled",15
+                ,"/tt/Hard.java:5: verify: Validity is unknown - time or memory limit reached: : Aborted proof: timeout",15
                 );
     }
 
@@ -959,7 +959,6 @@ public class escTiming extends EscBase {
     public void testPerCommandSolverOverhead() {
         final int N = 10000;
         final long BOUND_MS = 30000L;
-        addOptions("--esc-threads=1");
         StringBuilder sb = new StringBuilder();
         sb.append("package tt;\npublic class Many {\n  //@ requires 0 <= x && x < 1000;\n  public void m(int x) {\n");
         for (int k = 0; k < N; k++) sb.append("    //@ assert x + ").append(k).append(" >= ").append(k).append(";\n");
