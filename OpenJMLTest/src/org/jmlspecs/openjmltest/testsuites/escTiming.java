@@ -954,11 +954,11 @@ public class escTiming extends EscBase {
                 );
     }
 
-    // The bound exists because every SMT command sent to the solver must not carry a fixed per-command wait (~1 ms each).
+    // Bound guards against a fixed per-command solver wait (~1 ms each): measured ~54 s unfixed, ~17 s fixed (2026-10-04, VM 202); the bound is their geometric mean.
     @Test
     public void testPerCommandSolverOverhead() {
         final int N = 10000;
-        final long BOUND_MS = 18000L;
+        final long BOUND_MS = 30000L;
         addOptions("--esc-threads=1");
         StringBuilder sb = new StringBuilder();
         sb.append("package tt;\npublic class Many {\n  //@ requires 0 <= x && x < 1000;\n  public void m(int x) {\n");
