@@ -529,6 +529,8 @@ public class escstrings extends EscBase {
      *  declared one, must both still be rejected. */
     @Test
     public void testStringLengthUpperBoundIsNotVacuous() {
+        // z3 cannot build this test's >1000-character counterexample in the Strings theory (OpenJML #1049, z3 #10827); FinModel runs ESC with --no-smt-strings.
+        addOptions("--no-smt-strings");
         helpEsc("tt.A", """
                 package tt;
                 public class A {
