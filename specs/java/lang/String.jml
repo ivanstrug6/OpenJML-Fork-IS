@@ -287,6 +287,10 @@ public final class String
     @Override
     public /*@ strictly_pure @*/ boolean isEmpty();
 
+    //@ public normal_behavior
+    //@   ensures \result <==> (\forall int i; 0 <= i < length(); Character.isWhitespace(charAt(i)));
+    public /*@ pure @*/ boolean isBlank();
+
     /*@ // Inherits from CharSequence:
       @ //also public normal_behavior
       @ //  requires 0 <= index && index < chars.length;
@@ -636,7 +640,16 @@ public final class String
     public int hashCode();
 
     /*@  public normal_behavior
-      @   ensures \result == indexOf(ch, 0);
+      @   {|
+      @     requires 0 <= ch && ch <= 0xFFFF;
+      @     ensures \result == -1 || (0 <= \result && \result < length());
+      @     ensures \result != -1 ==> charAt(\result) == ch;
+      @     ensures \result != -1 ==> (\forall int i; 0 <= i < \result; charAt(i) != ch);
+      @     ensures \result == -1 ==> (\forall int i; 0 <= i < length(); charAt(i) != ch);
+      @   also
+      @     requires ch < 0 || ch > 0xFFFF;
+      @     ensures \result == -1 || (0 <= \result && \result < length());
+      @   |}
       @*/
     public /*@ pure @*/ int indexOf(int ch);
 
@@ -699,7 +712,10 @@ public final class String
 
     /*@ public normal_behavior
       @  requires str != null;
-      @  ensures \result == indexOf(str, 0);
+      @  ensures \result == -1 || (0 <= \result && \result + str.length() <= length());
+      @  ensures \result != -1 ==> (\forall int k; 0 <= k < str.length(); charAt(\result + k) == str.charAt(k));
+      @  ensures \result != -1 ==> (\forall int i; 0 <= i < \result; (\exists int k; 0 <= k < str.length(); charAt(i + k) != str.charAt(k)));
+      @  ensures \result == -1 ==> (\forall int i; 0 <= i && i + str.length() <= length(); (\exists int k; 0 <= k < str.length(); charAt(i + k) != str.charAt(k)));
       @*/
     public /*@ pure @*/ int indexOf(String str);
 
