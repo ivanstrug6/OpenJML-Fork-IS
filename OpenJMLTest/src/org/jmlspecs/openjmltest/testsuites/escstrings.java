@@ -608,4 +608,60 @@ public class escstrings extends EscBase {
                 ,"/tt/A.java:7: verify: Associated declaration",9
                 );
     }
+
+    /** Patch W (FinModel ISSUE-3082) POSITIVE: under the array string encoding,
+     *  String.indexOf(int), indexOf(String) and isBlank() carry their JDK-documented meaning. */
+    @Test
+    public void testStringIndexOfAndIsBlankSpecs() {
+        // FinModel runs ESC with --no-smt-strings.
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static void idx_range(/*@ non_null */ String s, char c) {
+                        int i = s.indexOf(c);
+                        //@ assert -1 <= i && i < s.length();
+                    }
+                    //@ requires s.indexOf(c) >= 0;
+                    public static void idx_charAt(/*@ non_null */ String s, char c) {
+                        //@ assert s.charAt(s.indexOf(c)) == c;
+                    }
+                    //@ requires s.indexOf("ab") >= 0;
+                    public static void idx_str_len(/*@ non_null */ String s) {
+                        //@ assert s.length() >= 2;
+                    }
+                    //@ requires !s.isBlank();
+                    public static void blank_len(/*@ non_null */ String s) {
+                        //@ assert s.length() > 0;
+                    }
+                }
+                """);
+    }
+
+    /** Patch W (FinModel ISSUE-3082) NEGATIVE CONTROLS: the indexOf/isBlank specs must not be
+     *  a rubber stamp; unconstrained or wrong-character assertions must still be reported. */
+    @Test
+    public void testStringIndexOfAndIsBlankSpecsAreNotVacuous() {
+        // FinModel runs ESC with --no-smt-strings.
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static void ctl_idx_unconstrained(/*@ non_null */ String s) {
+                        //@ assert s.indexOf('x') >= 0;
+                    }
+                    public static void ctl_blank_unconstrained(/*@ non_null */ String s) {
+                        //@ assert !s.isBlank();
+                    }
+                    //@ requires s.indexOf('a') >= 0;
+                    public static void ctl_idx_wrongChar(/*@ non_null */ String s) {
+                        //@ assert s.charAt(s.indexOf('a')) == 'b';
+                    }
+                }
+                """
+                ,"/tt/A.java:4: verify: The prover cannot establish an assertion (Assert) in method ctl_idx_unconstrained",13
+                ,"/tt/A.java:7: verify: The prover cannot establish an assertion (Assert) in method ctl_blank_unconstrained",13
+                ,"/tt/A.java:11: verify: The prover cannot establish an assertion (Assert) in method ctl_idx_wrongChar",13
+                );
+    }
 }
