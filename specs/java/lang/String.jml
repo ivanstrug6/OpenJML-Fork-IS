@@ -287,10 +287,6 @@ public final class String
     @Override
     public /*@ strictly_pure @*/ boolean isEmpty();
 
-    //@ public normal_behavior
-    //@   ensures \result <==> (\forall int i; 0 <= i < length(); Character.isWhitespace(charAt(i)));
-    public /*@ pure @*/ boolean isBlank();
-
     /*@ // Inherits from CharSequence:
       @ //also public normal_behavior
       @ //  requires 0 <= index && index < chars.length;
@@ -638,6 +634,10 @@ public final class String
 
     // specification is inherited, this method does have side effects!
     public int hashCode();
+
+    //@ public normal_behavior
+    //@   ensures \result <==> (\forall int i; 0 <= i < length(); Character.isWhitespace(charAt(i)));
+    public /*@ pure @*/ boolean isBlank();
 
     /*@  public normal_behavior
       @   {|
