@@ -193,10 +193,10 @@ public class SMTTranslator extends JmlTreeScanner {
     protected List<ICommand> startCommands;
     
     /** A collection of all newly defined sorts */
-    final protected Map<Type,Integer> newSorts = new HashMap<>();
+    final protected Map<Type,Integer> newSorts = new LinkedHashMap<>(); // FinModel patch T6: insertion-ordered, so the SMT script does not depend on identity hash codes
     
     /** A list that accumulates all the Java type constants used */
-    final protected Set<Type> javaTypes = new HashSet<Type>();
+    final protected Set<Type> javaTypes = new LinkedHashSet<Type>(); // FinModel patch T6: insertion-ordered, so the SMT script does not depend on identity hash codes
 
     /** A list that accumulates all the Java type constants used */
     final protected Map<String,IExpr> javaParameterizedTypes = new HashMap<String,IExpr>();
@@ -4068,7 +4068,7 @@ public class SMTTranslator extends JmlTreeScanner {
         result = sym;
     }
     
-    Set<ISymbol> functionSymbols = new HashSet<ISymbol>();
+    Set<ISymbol> functionSymbols = new LinkedHashSet<ISymbol>(); // FinModel patch T6: insertion-ordered, so the SMT script does not depend on identity hash codes
     
     @Override 
     public void visitLambda(JCTree.JCLambda that) {
