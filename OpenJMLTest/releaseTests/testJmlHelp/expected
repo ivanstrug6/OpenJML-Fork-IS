@@ -130,6 +130,7 @@ JML options:
   --esc-warnings-path        ESC: If true, find all counterexample paths to each invalid assert
   --counterexample           ESC: Enables output of complete, raw counterexample
   --subexpressions           ESC: Enables tracing with subexpressions
+  --esc-threads              ESC: Number of concurrent solver sessions (0 = number of available processors, 1 = sequential)
   --check-feasibility        ESC: Check feasibility of assumptions
   --typeQuants               ESC: Introduces quantified assertions for type variables (true, false, or auto)
   --solver-seed              ESC: Seed to initialize solver's random number generation
