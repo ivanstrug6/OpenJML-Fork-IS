@@ -959,6 +959,7 @@ public class escTiming extends EscBase {
     public void testPerCommandSolverOverhead() {
         final int N = 10000;
         final long BOUND_MS = 30000L;
+        addOptions("--esc-threads=1");
         StringBuilder sb = new StringBuilder();
         sb.append("package tt;\npublic class Many {\n  //@ requires 0 <= x && x < 1000;\n  public void m(int x) {\n");
         for (int k = 0; k < N; k++) sb.append("    //@ assert x + ").append(k).append(" >= ").append(k).append(";\n");
