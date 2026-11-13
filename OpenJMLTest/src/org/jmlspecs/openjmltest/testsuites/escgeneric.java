@@ -1122,4 +1122,107 @@ public class escgeneric extends EscBase {
                 """
                 );
     }
+
+    /** Patch X (ISSUE-3126): allocating a generic subclass that binds its parent's type argument must not make the state contradictory. */
+    @Test
+    public void testGenericBoundParentArgDeadStateNew() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class Box<T> {}
+                  static class S<X> extends Box<String> {}
+                  public static void sNew() {
+                    S<Integer> s = new S<Integer>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method sNew",9
+                );
+    }
+
+    /** Patch X (ISSUE-3126): parent-typed declaration initialised from the binding subclass, static and instance. */
+    @Test
+    public void testGenericBoundParentArgDeadStateDecl() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class Box<T> {}
+                  static class S<X> extends Box<String> {}
+                  public static void sDecl() {
+                    Box<String> b = new S<Integer>();
+                    //@ assert false;
+                  }
+                  public void iDecl() {
+                    Box<String> b = new S<Integer>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method sDecl",9
+                ,"/tt/TestJava.java:11: verify: The prover cannot establish an assertion (Assert) in method iDecl",9
+                );
+    }
+
+    /** Patch X (ISSUE-3126) control: same type argument stays refuted. */
+    @Test
+    public void testGenericBoundParentArgControlSameArg() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class Box<T> {}
+                  static class S<X> extends Box<String> {}
+                  public static void sSame() {
+                    S<String> s = new S<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method sSame",9
+                );
+    }
+
+    /** Patch X (ISSUE-3126) control: two Box allocations with different arguments (Patch V shape) stay refuted. */
+    @Test
+    public void testGenericBoundParentArgControlBoxPair() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class Box<T> {}
+                  static class S<X> extends Box<String> {}
+                  public static void boxPair() {
+                    Box<Object> a = new Box<Object>();
+                    Box<String> b = new Box<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assert) in method boxPair",9
+                );
+    }
+
+    /** Patch X (ISSUE-3126): true assertions about the binding subclass must be proved (no warning). */
+    @Test
+    public void testGenericBoundParentArgNonVacuity() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class Box<T> {}
+                  static class S<X> extends Box<String> {}
+                  public static void nonVac() {
+                    S<Integer> s = new S<Integer>();
+                    Box<String> b = s;
+                    //@ assert \\typeof(s) == \\type(S<Integer>);
+                    //@ assert \\typeof(s) <: \\type(Box<String>);
+                    //@ assert \\typeof(b) <: \\type(Box<String>);
+                  }
+                }
+                """
+                );
+    }
 }
