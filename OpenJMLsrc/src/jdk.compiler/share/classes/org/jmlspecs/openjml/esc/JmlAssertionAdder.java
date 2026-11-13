@@ -4315,8 +4315,13 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 						for (Type tt : parents(sym.type.tsym.type, false))
 							System.out.println("    PARENTS " + tt);
 					}
+					// FinModel patch V (ISSUE-3052): assume the supertype of the actual type, with the
+					// instantiation's type arguments; the declared parent carries the class's own type variables.
+					// Only a class type (including raw and intersection types) has such a supertype.
+					Type st = (t == null || !sym.type.hasTag(TypeTag.CLASS)) ? null : types.asSuper(sym.type, t.tsym);
+					if (st == null) st = t;
 					try {
-						JCExpression ee3 = treeutils.makeDynamicTypeInEquality(pos, copy(id), t);
+						JCExpression ee3 = treeutils.makeDynamicTypeInEquality(pos, copy(id), st);
 						e3 = e3 == null ? ee3 : treeutils.makeAnd(ee3.pos, e3, ee3);
 					} catch (AssertionError e) {
 						System.out.println("NULL PARENT " + sym + " " + sym.type.tsym.type);
@@ -4416,7 +4421,12 @@ public class JmlAssertionAdder extends JmlTreeScanner {
 			} else {
 				e3 = null;
 				for (Type t : parents(sym.type.tsym.type, false)) { // OK - no enclsoing types
-					JCExpression ee3 = treeutils.makeNonNullDynamicTypeInEquality(pos, copy(id), t);
+					// FinModel patch V (ISSUE-3052): assume the supertype of the actual type, with the
+					// instantiation's type arguments; the declared parent carries the class's own type variables.
+					// Only a class type (including raw and intersection types) has such a supertype.
+					Type st = (t == null || !sym.type.hasTag(TypeTag.CLASS)) ? null : types.asSuper(sym.type, t.tsym);
+					if (st == null) st = t;
+					JCExpression ee3 = treeutils.makeNonNullDynamicTypeInEquality(pos, copy(id), st);
 					e3 = e3 == null ? ee3 : treeutils.makeAnd(ee3.pos, e3, ee3);
 				}
 				if (!nnull) {
