@@ -787,4 +787,339 @@ public class escgeneric extends EscBase {
                 """
                 );
     }
+
+    /** Patch V (ISSUE-3052), family 1: two allocations of one spec-less generic class with different type arguments must not make the state contradictory. */
+    @Test
+    public void testGenericTypeArgsDeadStateBox() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                class Box<T> {}
+                public class TestJava {
+                  public static void bad() {
+                    Box<Object> a = new Box<Object>();
+                    Box<String> b = new Box<String>();
+                    //@ assert false;
+                  }
+                  public static void badInt() {
+                    Box<Object> a = new Box<Object>();
+                    Box<Integer> b = new Box<Integer>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method bad",9
+                ,"/tt/TestJava.java:12: verify: The prover cannot establish an assertion (Assert) in method badInt",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 1: ArrayList with different type arguments (instance, static, diamond). */
+    @Test
+    public void testGenericTypeArgsDeadStateArrayList() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.ArrayList;
+                import java.util.List;
+                public class TestJava {
+                  public void s1() {
+                    List<Object> a = new ArrayList<Object>();
+                    List<String> b = new ArrayList<String>();
+                    //@ assert false;
+                  }
+                  public static void st1() {
+                    List<Object> a = new ArrayList<Object>();
+                    List<String> b = new ArrayList<String>();
+                    //@ assert false;
+                  }
+                  public static void diamond() {
+                    List<Object> a = new ArrayList<Object>();
+                    List<String> b = new ArrayList<>();
+                    //@ assert false;
+                  }
+                  public static void strObj() {
+                    List<String> a = new ArrayList<String>();
+                    List<Object> b = new ArrayList<Object>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assert) in method s1",9
+                ,"/tt/TestJava.java:13: verify: The prover cannot establish an assertion (Assert) in method st1",9
+                ,"/tt/TestJava.java:18: verify: The prover cannot establish an assertion (Assert) in method diamond",9
+                ,"/tt/TestJava.java:23: verify: The prover cannot establish an assertion (Assert) in method strObj",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 1: two classes sharing the type-variable name T, different arguments. */
+    @Test
+    public void testGenericTypeArgsDeadStateSharedTypeVarName() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                class BoxT<T> {}
+                class BagT<T> {}
+                public class TestJava {
+                  public static void sameNameBad() {
+                    BoxT<Object> a = new BoxT<Object>();
+                    BagT<String> b = new BagT<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assert) in method sameNameBad",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 1: ArrayList and HashSet (both declare E), different arguments. */
+    @Test
+    public void testGenericTypeArgsDeadStateListSet() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.ArrayList;
+                import java.util.HashSet;
+                import java.util.List;
+                import java.util.Set;
+                public class TestJava {
+                  public static void jdkListSet() {
+                    List<Object> a = new ArrayList<Object>();
+                    Set<String> b = new HashSet<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:10: verify: The prover cannot establish an assertion (Assert) in method jdkListSet",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 1: two Optional.of results with different arguments. */
+    @Test
+    public void testGenericTypeArgsDeadStateOptional() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  public static void optional(Object o) {
+                    Optional<Object> a = Optional.of(o);
+                    Optional<String> b = Optional.of("s");
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method optional",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: same type argument twice stays refuted. */
+    @Test
+    public void testGenericTypeArgsControlSameArgBox() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                class Box<T> {}
+                public class TestJava {
+                  public static void good() {
+                    Box<Object> a = new Box<Object>();
+                    Box<Object> b = new Box<Object>();
+                    //@ assert false;
+                  }
+                  public static void goodString() {
+                    Box<String> a = new Box<String>();
+                    Box<String> b = new Box<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method good",9
+                ,"/tt/TestJava.java:12: verify: The prover cannot establish an assertion (Assert) in method goodString",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: ArrayList same argument, and a single allocation. */
+    @Test
+    public void testGenericTypeArgsControlSameArgArrayList() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.ArrayList;
+                import java.util.List;
+                public class TestJava {
+                  public static void s1c() {
+                    List<Object> a = new ArrayList<Object>();
+                    List<Object> b = new ArrayList<Object>();
+                    //@ assert false;
+                  }
+                  public static void single() {
+                    List<String> b = new ArrayList<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assert) in method s1c",9
+                ,"/tt/TestJava.java:12: verify: The prover cannot establish an assertion (Assert) in method single",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: shared name same argument; different type-variable name. */
+    @Test
+    public void testGenericTypeArgsControlSameNameAndOtherName() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                class BoxT<T> {}
+                class BagT<T> {}
+                class BagU<U> {}
+                public class TestJava {
+                  public static void sameNameCtl() {
+                    BoxT<Object> a = new BoxT<Object>();
+                    BagT<Object> b = new BagT<Object>();
+                    //@ assert false;
+                  }
+                  public static void otherName() {
+                    BoxT<Object> a = new BoxT<Object>();
+                    BagU<String> b = new BagU<String>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:9: verify: The prover cannot establish an assertion (Assert) in method sameNameCtl",9
+                ,"/tt/TestJava.java:14: verify: The prover cannot establish an assertion (Assert) in method otherName",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: ArrayList and HashSet, same argument. */
+    @Test
+    public void testGenericTypeArgsControlListSetSameArg() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.ArrayList;
+                import java.util.HashSet;
+                import java.util.List;
+                import java.util.Set;
+                public class TestJava {
+                  public static void jdkListSetCtl() {
+                    List<Object> a = new ArrayList<Object>();
+                    Set<Object> b = new HashSet<Object>();
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:10: verify: The prover cannot establish an assertion (Assert) in method jdkListSetCtl",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: Optional.of twice, same argument. */
+    @Test
+    public void testGenericTypeArgsControlOptionalSameArg() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  public static void optionalCtl(Object o) {
+                    Optional<Object> a = Optional.of(o);
+                    Optional<Object> b = Optional.of(o);
+                    //@ assert false;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method optionalCtl",9
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 2 control: one allocation mixed with a parameter, field, method result or cast of the other argument stays live. */
+    @Test
+    public void testGenericTypeArgsControlMixedSources() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                class Box<T> {}
+                public class TestJava {
+                  static Box<Object> fObj = new Box<Object>();
+                  static Box<String> fStr = new Box<String>();
+                  //@ ensures true;
+                  static Box<Object> mkObj() { return new Box<Object>(); }
+                  public static void parParBad(Box<Object> a, Box<String> b) {
+                    //@ assert false;
+                  }
+                  public static void parNewBad(Box<Object> a) {
+                    Box<String> b = new Box<String>();
+                    //@ assert false;
+                  }
+                  public static void parNewCtl(Box<Object> a) {
+                    Box<Object> b = new Box<Object>();
+                    //@ assert false;
+                  }
+                  public static void fieldFieldBad() {
+                    Box<Object> a = fObj;
+                    Box<String> b = fStr;
+                    //@ assert false;
+                  }
+                  public static void resNewBad() {
+                    Box<Object> a = mkObj();
+                    Box<String> b = new Box<String>();
+                    //@ assert false;
+                  }
+                  public static void resNewCtl() {
+                    Box<Object> a = mkObj();
+                    Box<Object> b = new Box<Object>();
+                    //@ assert false;
+                  }
+                  @SuppressWarnings("unchecked")
+                  public static void castNewBad(Object o) {
+                    if (o instanceof Box) {
+                      Box<Object> a = (Box<Object>) o;
+                      Box<String> b = new Box<String>();
+                      //@ assert false;
+                    }
+                  }
+                  @SuppressWarnings("unchecked")
+                  public static void castNewCtl(Object o) {
+                    if (o instanceof Box) {
+                      Box<Object> a = (Box<Object>) o;
+                      Box<Object> b = new Box<Object>();
+                      //@ assert false;
+                    }
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:9: verify: The prover cannot establish an assertion (Assert) in method parParBad",9
+                ,"/tt/TestJava.java:13: verify: The prover cannot establish an assertion (Assert) in method parNewBad",9
+                ,"/tt/TestJava.java:17: verify: The prover cannot establish an assertion (Assert) in method parNewCtl",9
+                ,"/tt/TestJava.java:22: verify: The prover cannot establish an assertion (Assert) in method fieldFieldBad",9
+                ,"/tt/TestJava.java:27: verify: The prover cannot establish an assertion (Assert) in method resNewBad",9
+                ,"/tt/TestJava.java:32: verify: The prover cannot establish an assertion (Assert) in method resNewCtl",9
+                ,"/tt/TestJava.java:39: verify: The prover cannot establish an assertion (Assert) in method castNewBad",11
+                ,"/tt/TestJava.java:47: verify: The prover cannot establish an assertion (Assert) in method castNewCtl",11
+                );
+    }
+
+    /** Patch V (ISSUE-3052), family 3: true assertions after allocations with different type arguments must still be proved (no warning). */
+    @Test
+    public void testGenericTypeArgsNonVacuous() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.ArrayList;
+                import java.util.List;
+                class Box<T> {}
+                public class TestJava {
+                  public static void nonVacuous() {
+                    Box<Object> a = new Box<Object>();
+                    Box<String> b = new Box<String>();
+                    //@ assert a != null;
+                    //@ assert b != null;
+                  }
+                  public static void nonVacuousList() {
+                    List<Object> a = new ArrayList<Object>();
+                    List<String> b = new ArrayList<String>();
+                    //@ assert a != null && b != null;
+                  }
+                }
+                """
+                );
+    }
 }
