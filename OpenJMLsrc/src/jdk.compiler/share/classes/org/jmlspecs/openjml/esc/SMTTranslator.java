@@ -475,8 +475,8 @@ public class SMTTranslator extends JmlTreeScanner {
         addCommand(smt,"(assert (forall ((T "+JMLTYPESORT+")) (! (= (|`erasure| ("+MAKEJMLARRAYTYPE+" T)) ("+MAKEJAVAARRAYTYPE+" (|`erasure| T))) :pattern ((|`erasure| ("+MAKEJMLARRAYTYPE+" T))))))");
         addCommand(smt,"(assert (forall ((T1 "+JMLTYPESORT+")(T2 "+JMLTYPESORT+"))  (! (=> ("+JMLSUBTYPE+" T1 T2) ("+JAVASUBTYPE+" (|`erasure| T1) (|`erasure| T2))) :pattern (("+JMLSUBTYPE+" T1 T2)))))");
         addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(T3 "+JMLTYPESORT+"))  (! (= ("+JAVASUBTYPE+" T1 T2) ("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T3))) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T3))))))");
-        addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(T3 "+JMLTYPESORT+")(T4 "+JMLTYPESORT+"))  (! (=> (and ("+JAVASUBTYPE+" T1 T2) (not (= T3 T4))) (not ("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T4)))) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T4))))))");
-        addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(T3 "+JMLTYPESORT+")(T4 "+JMLTYPESORT+"))  (! (=> ("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T4))   (and ("+JAVASUBTYPE+" T1 T2) (= T3 T4)) ) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 T3) (_JMLT_1 T2 T4))))))");
+        // FinModel patch X (ISSUE-3126): No axiom relates the type arguments of C<A> <: D<B> for distinct classes:
+        // a subclass may bind its parent's argument (class S<X> extends Box<String>). Same-class invariance is asserted separately.
         addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(T3 "+JMLTYPESORT+")(T4 "+JMLTYPESORT+"))  (=> (= (_JMLT_1 T1 T3) (_JMLT_1 T2 T4))   (and (= T1 T2) (= T3 T4)) ) )))");
         //addCommand(smt,"(assert (forall ((T "+JAVATYPESORT+")) (= ( "+arrayElemType+" ("+MAKEJAVAARRAYTYPE+" T)) T)))");
         }
@@ -611,7 +611,8 @@ public class SMTTranslator extends JmlTreeScanner {
             
             addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(J1 "+JMLTYPESORT+")(J2 "+JMLTYPESORT+")) (=> (= (_JMLT_1 T1 J1)(_JMLT_1 T2 J2)) (and (= T1 T2) (= J1 J2)))))");
             addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(J1 "+JMLTYPESORT+")) (! (=> ("+JAVASUBTYPE+" T1 T2) ("+JMLSUBTYPE+" (_JMLT_1 T1 J1) (_JMLT_1 T2 J1) )) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 J1) (_JMLT_1 T2 J1))))))"); // FIXME - this is true for collections, but necessarily always true?
-            addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")(J1 "+JMLTYPESORT+")(J2 "+JMLTYPESORT+")) (! (=> (and ("+JAVASUBTYPE+" T1 T2) (distinct J1 J2)) (not ("+JMLSUBTYPE+" (_JMLT_1 T1 J1) (_JMLT_1 T2 J2) )) ) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 J1) (_JMLT_1 T2 J2))))))"); // FIXME - this is true for collections, but necessarily always true?
+            // No axiom relates the type arguments of C<A> <: D<B> for distinct classes: a subclass may bind its parent's argument
+            // (class S<X> extends Box<String>). Same-class invariance is asserted separately.
             addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(J1 "+JMLTYPESORT+")(J2 "+JMLTYPESORT+")) (! (= ("+JMLSUBTYPE+" (_JMLT_1 T1 J1)(_JMLT_1 T1 J2)) (= J1 J2)) :pattern (("+JMLSUBTYPE+" (_JMLT_1 T1 J1) (_JMLT_1 T1 J2))))))");
             
             addCommand(smt,"(assert (forall ((T1 "+JAVATYPESORT+")(T2 "+JAVATYPESORT+")) (=> (= T1 T2) ("+JAVASUBTYPE+" T1 T2))))");

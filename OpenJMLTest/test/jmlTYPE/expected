@@ -55,9 +55,10 @@ Feasibility check - end of preconditions : OK
 Feasibility check - at program exit : OK
 Completed proof of Test.m(\TYPE) with prover !!!! - no warnings
 Starting proof of Test.subtypeTests() with prover !!!!
-Feasibility check - end of preconditions : OK
-Feasibility check - at program exit : OK
-Completed proof of Test.subtypeTests() with prover !!!! - no warnings
+test/jmlTYPE/Test.java:118: verify: The prover cannot establish an assertion (Assert) in method subtypeTests
+        //@ check !(\type(ArrayList<Integer>) <: \type(List<Boolean>) );
+            ^
+Completed proof of Test.subtypeTests() with prover !!!! - with warnings
 Starting proof of Test.elemtypeTests() with prover !!!!
 Feasibility check - end of preconditions : OK
 Feasibility check - at program exit : OK
