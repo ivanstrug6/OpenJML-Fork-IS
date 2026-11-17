@@ -622,24 +622,29 @@ public class escrecord extends EscBase {
                 );
     }
 
-    /** Control: the accessor of a nullable component of a record with a .jml companion may return null
-     *  (FinModel ISSUE-3195). */
+    /** A component declared nullable in the .jml makes its accessor nullable too, so a postcondition that
+     *  needs a non-null result is not provable (FinModel ISSUE-3195). */
     @Test
-    public void testNullableComponentJmlCompanionAccessorControl() {
+    public void testNullableComponentJmlCompanionAccessorNullable() {
         addMockFile("$A/tt/P.jml", """
                 package tt;
                 public sealed interface P permits P.Bind {
                     record Bind(String name, /*@ nullable */ String guard) implements P {}
+                    //@ requires b != null;
+                    //@ ensures \\result == 1;
+                    static int t(P.Bind b);
                 }
                 """);
         helpEsc("tt.P", """
                 package tt;
                 public sealed interface P permits P.Bind {
                     record Bind(String name, /*@ nullable */ String guard) implements P {}
-                    //@ requires b != null;
                     static int t(P.Bind b) { /*@ nullable */ String g = b.guard(); return g == null ? 0 : 1; }
                 }
-                """);
+                """
+                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Postcondition) in method t",68 // pinned from the observed run
+                ,"/$A/tt/P.jml:5: verify: Associated declaration",5 // pinned from the observed run
+                );
     }
 
     /** A nullable record component: its field, its accessor and a record pattern binding may be null (#1061) */
