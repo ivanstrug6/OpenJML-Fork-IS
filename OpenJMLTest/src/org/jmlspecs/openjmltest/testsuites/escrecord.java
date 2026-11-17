@@ -616,9 +616,9 @@ public class escrecord extends EscBase {
                     static P t() { return new P.Bind(null, "g"); }
                 }
                 """
-                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Precondition) in method t",27 // pinned from the observed run
-                ,"/$A/tt/P.jml:3: verify: Associated declaration",5 // pinned from the observed run
-                ,"/$A/tt/P.jml:3: verify: Precondition conjunct is false: null != null",0 // pinned from the observed run
+                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Precondition) in method t",27
+                ,"/tt/P.java:3: verify: Associated declaration",5
+                ,"/tt/P.java:4: verify: Precondition conjunct is false: null != null",38
                 );
     }
 
