@@ -107,6 +107,11 @@ public class Object {
       @     requires obj == null;
       @     assignable \nothing;
       @     ensures !\result;
+      @ // FinModel Patch Y (ISSUE-3185): every override inherits this case: a non-null argument returns normally and assigns nothing; nothing is said about the result. The first case above is code-only, so overrides do not inherit it.
+      @ also
+      @   public normal_behavior
+      @     requires obj != null;
+      @     assignable \nothing;
       @*/
     //@ pure // FIXME - really? for all subclasses also?
     public boolean equals(/*@ nullable*/ Object obj);
