@@ -1225,4 +1225,172 @@ public class escgeneric extends EscBase {
                 """
                 );
     }
+
+    /** Patch Y (ISSUE-3185): a.equals(b) on two non-null Optionals, whose type has no equals spec of its own, raises no warning. */
+    @Test
+    public void testEqualsNonNullArgOptional() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  //@ requires a != null && b != null;
+                  public static boolean optEquals(Optional<String> a, Optional<String> b) {
+                    return a.equals(b);
+                  }
+                }
+                """
+                );
+    }
+
+    /** Patch Y (ISSUE-3185): l1.equals(l2) on two non-null instances of a local class that overrides equals without a spec raises no warning. */
+    @Test
+    public void testEqualsNonNullArgLocalClass() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class L {
+                    public boolean equals(/*@ nullable */ Object o) { return o instanceof L; }
+                  }
+                  //@ requires l1 != null && l2 != null;
+                  public static boolean localEquals(L l1, L l2) {
+                    return l1.equals(l2);
+                  }
+                }
+                """
+                );
+    }
+
+    /** Patch Y (ISSUE-3185): the call a.equals(b) leaves a live state, so an assertion false after it is reported and nothing else is. */
+    @Test
+    public void testEqualsNonNullArgAfterCall() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  //@ requires a != null && b != null;
+                  public static boolean afterCall(Optional<String> a, Optional<String> b) {
+                    boolean r = a.equals(b);
+                    //@ assert false;
+                    return r;
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (Assert) in method afterCall",9
+                );
+    }
+
+    /** Patch Y (ISSUE-3185) control: an assertion false before a.equals(b) is reported and nothing else is. */
+    @Test
+    public void testEqualsNonNullArgControlBeforeCall() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  //@ requires a != null && b != null;
+                  public static boolean beforeCall(Optional<String> a, Optional<String> b) {
+                    //@ assert false;
+                    return a.equals(b);
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:6: verify: The prover cannot establish an assertion (Assert) in method beforeCall",9
+                );
+    }
+
+    /** Patch Y (ISSUE-3185) control: equals with a null argument is false for a non-null receiver, no warning. */
+    @Test
+    public void testEqualsNullArgControl() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  //@ requires a != null;
+                  public static void nullArg(Optional<String> a) {
+                    //@ assert !a.equals(null);
+                  }
+                }
+                """
+                );
+    }
+
+    /** Patch Y (ISSUE-3185) control: Object's own equals cases prove o.equals(o), no warning. */
+    @Test
+    public void testEqualsObjectOwnCaseControl() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  public static void objOwn() {
+                    Object o = new Object();
+                    //@ assert o.equals(o);
+                  }
+                }
+                """
+                );
+    }
+
+    /** Patch Y (ISSUE-3185) control: equals on two non-null Optionals claims no result, so asserting a.equals(b) is reported. */
+    @Test
+    public void testEqualsNoResultClaimedControl() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                import java.util.Optional;
+                public class TestJava {
+                  //@ requires a != null && b != null;
+                  public static void noResult(Optional<String> a, Optional<String> b) {
+                    //@ assert a.equals(b);
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:6: verify: The prover cannot establish an assertion (Assert) in method noResult",9
+                );
+    }
+
+    /** Patch Y (ISSUE-3185): an equals override that throws for a non-null argument violates the inherited no-throw case. */
+    @Test
+    public void testEqualsInheritedNoThrowObligation() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class T {
+                    public boolean equals(/*@ nullable */ Object o) {
+                      if (o == this) return true;
+                      if (o == null) return false;
+                      throw new IllegalStateException();
+                    }
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:4: verify: The prover cannot establish an assertion (ExceptionList) in method equals",20
+                );
+    }
+
+    /** Patch Y (ISSUE-3185): an equals override that assigns a static field for a non-null argument violates the inherited assignable \\nothing case. */
+    @Test
+    public void testEqualsInheritedAssignsNothingObligation() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static class A {
+                    static int count;
+                    public boolean equals(/*@ nullable */ Object o) {
+                      if (o == this) return true;
+                      if (o == null) return false;
+                      count++;
+                      return false;
+                    }
+                  }
+                }
+                """
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assignable) in method equals: count",7
+                );
+    }
 }
