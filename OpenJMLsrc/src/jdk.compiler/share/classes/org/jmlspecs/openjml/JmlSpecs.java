@@ -1674,6 +1674,13 @@ public class JmlSpecs {
             if (utils.hasModOrAnn(mods, Modifiers.NULLABLE)) return false;
             if (utils.hasModOrAnn(mods, Modifiers.NON_NULL)) return true;
         }
+        if ((msym.flags() & Flags.GENERATEDCONSTR) != 0 && msym.owner instanceof ClassSymbol cs && cs.isRecord()
+                && msym.params != null && i < msym.params.size()) {
+            // A generated record canonical constructor's parameter has its record component's nullness (FinModel ISSUE-3195)
+            var field = cs.members().findFirst(msym.params.get(i).name, s -> s instanceof VarSymbol && (s.flags() & Flags.RECORD) != 0);
+            var fspecs = field == null ? null : specsFields.get((VarSymbol)field);
+            if (fspecs != null) return fspecs.isNonNull;
+        }
         if (calleeSpecs.decl == null) {
             // The callee is a binary class with no source and no jml, so there is no declaration
             // The specs themselves are default specs
