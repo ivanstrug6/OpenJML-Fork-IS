@@ -300,6 +300,8 @@ public class JmlMemberEnter extends MemberEnter  {// implements IJmlVisitor {
         						specVarDecl.sym = javaVarDecl.sym;
         						specVarDecl.type = javaVarDecl.type;
         						specVarDecl.vartype.type = javaVarDecl.type;
+        						// A record component declared in the .jml header has no field specs from the parser; create them so its JML modifiers (e.g. nullable) apply (FinModel ISSUE-3195)
+        						if (specVarDecl.fieldSpecs == null) specVarDecl.fieldSpecs = new JmlSpecs.FieldSpecs(specVarDecl);
         						specs.putSpecs(javaVarDecl.sym, specVarDecl.fieldSpecs);
             					//System.out.println("MATCHED JAVA FIELD " + cd.name + " " + vd.name);
                         	}
