@@ -617,7 +617,7 @@ public class escrecord extends EscBase {
                 }
                 """
                 ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Precondition) in method t",27
-                ,"/tt/P.java:3: verify: Associated declaration",5
+                ,"/tt/P.java:4: verify: Associated declaration",38
                 ,"/tt/P.java:4: verify: Precondition conjunct is false: null != null",38
                 );
     }
@@ -642,8 +642,8 @@ public class escrecord extends EscBase {
                     static int t(P.Bind b) { /*@ nullable */ String g = b.guard(); return g == null ? 0 : 1; }
                 }
                 """
-                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Postcondition) in method t",68 // pinned from the observed run
-                ,"/$A/tt/P.jml:5: verify: Associated declaration",5 // pinned from the observed run
+                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Postcondition) in method t",68
+                ,"/$A/tt/P.jml:5: verify: Associated declaration",9
                 );
     }
 
