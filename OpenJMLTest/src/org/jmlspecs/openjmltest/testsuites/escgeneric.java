@@ -1368,7 +1368,8 @@ public class escgeneric extends EscBase {
                   }
                 }
                 """
-                ,"/tt/TestJava.java:4: verify: The prover cannot establish an assertion (ExceptionList) in method equals",20
+                ,"/tt/TestJava.java:7: verify: The prover cannot establish an assertion (ExceptionalPostcondition) in method equals",7
+                ,"$SPECS/java/lang/Object.jml:112: verify: Associated declaration",18
                 );
     }
 
@@ -1380,17 +1381,18 @@ public class escgeneric extends EscBase {
                 package tt;
                 public class TestJava {
                   static class A {
-                    static int count;
+                    static boolean flag;
                     public boolean equals(/*@ nullable */ Object o) {
                       if (o == this) return true;
                       if (o == null) return false;
-                      count++;
+                      flag = true;
                       return false;
                     }
                   }
                 }
                 """
-                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assignable) in method equals: count",7
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assignable) in method equals: tt.TestJava.A.flag",12
+                ,"$SPECS/java/lang/Object.jml:114: verify: Associated declaration",13
                 );
     }
 }
