@@ -1391,7 +1391,7 @@ public class escgeneric extends EscBase {
                   }
                 }
                 """
-                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assignable) in method equals: tt.TestJava.A.flag",12
+                ,"/tt/TestJava.java:8: verify: The prover cannot establish an assertion (Assignable) in method equals: flag",12
                 ,"$SPECS/java/lang/Object.jml:114: verify: Associated declaration",13
                 );
     }
