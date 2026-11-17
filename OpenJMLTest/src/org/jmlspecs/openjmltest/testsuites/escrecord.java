@@ -580,6 +580,68 @@ public class escrecord extends EscBase {
                 """);
     }
 
+    /** A nullable component of a record with a .jml companion: the generated canonical constructor accepts
+     *  null for it (FinModel ISSUE-3195). */
+    @Test
+    public void testNullableComponentJmlCompanion() {
+        addMockFile("$A/tt/P.jml", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                }
+                """);
+        helpEsc("tt.P", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                    static P t(String n) { return new P.Bind(n, null); }
+                }
+                """);
+    }
+
+    /** Control: a non-nullable component of a record with a .jml companion still rejects null in the
+     *  generated canonical constructor (FinModel ISSUE-3195). */
+    @Test
+    public void testNullableComponentJmlCompanionNonNullControl() {
+        addMockFile("$A/tt/P.jml", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                }
+                """);
+        helpEsc("tt.P", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                    static P t() { return new P.Bind(null, "g"); }
+                }
+                """
+                ,"/tt/P.java:4: verify: The prover cannot establish an assertion (Precondition) in method t",27 // pinned from the observed run
+                ,"/$A/tt/P.jml:3: verify: Associated declaration",5 // pinned from the observed run
+                ,"/$A/tt/P.jml:3: verify: Precondition conjunct is false: null != null",0 // pinned from the observed run
+                );
+    }
+
+    /** Control: the accessor of a nullable component of a record with a .jml companion may return null
+     *  (FinModel ISSUE-3195). */
+    @Test
+    public void testNullableComponentJmlCompanionAccessorControl() {
+        addMockFile("$A/tt/P.jml", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                }
+                """);
+        helpEsc("tt.P", """
+                package tt;
+                public sealed interface P permits P.Bind {
+                    record Bind(String name, /*@ nullable */ String guard) implements P {}
+                    //@ requires b != null;
+                    static int t(P.Bind b) { /*@ nullable */ String g = b.guard(); return g == null ? 0 : 1; }
+                }
+                """);
+    }
+
     /** A nullable record component: its field, its accessor and a record pattern binding may be null (#1061) */
     @Test
     public void testNullableComponent() {
