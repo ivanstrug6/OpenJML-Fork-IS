@@ -396,7 +396,7 @@ public class JmlEsc extends JmlTreeScanner {
         boolean isConstructor = methodDecl.sym.isConstructor();
         boolean doEsc = methodDecl.body != null || !org.jmlspecs.openjml.JmlOption.FEASIBILITY.includes(context, org.jmlspecs.openjml.Strings.feas_none);
         if (methodDecl.sym.owner == syms.objectType.tsym && isConstructor) doEsc = false;
-        return !skip(methodDecl) && doEsc;
+        return doEsc;
     }
     
     /** Do the actual work of proving the method */
