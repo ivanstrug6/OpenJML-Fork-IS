@@ -1070,6 +1070,9 @@ public final class String
       @   //ensures String.equals(\result, Integer.toString(i,10)); // FIXME - feasibility probloem with gitbug467
       @   //-RAC@ ensures \result.chars.length <= 11;
       @*/
+    /*@  public normal_behavior
+      @   ensures \result != null;
+      @*/
     public static /*@ pure @*/ /*@ non_null @*/ String valueOf(int i);
     
     /* FIXME @  public normal_behavior

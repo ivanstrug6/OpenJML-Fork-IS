@@ -57,7 +57,7 @@ public interface Collection<E> extends Iterable<E> {
     //------------------------------------------------------------
 
     /*-RAC@ public normal_behavior
-      @    ensures \result == values.length;
+      @    ensures \result == values.length; ensures \result >= 0;
       @*/
     /*@ strictly_pure helper @*/ int size();
 
