@@ -1452,8 +1452,7 @@ public class escgeneric extends EscBase {
                   }
                 }
                 """
-                // EXPECTED-TBC: confirm line/column from the red run
-                ,"/tt/TestJava.java:4: verify: The prover cannot establish an assertion (Assert) in method m",5
+                ,"/tt/TestJava.java:4: verify: The prover cannot establish an assertion (Assert) in method m",9
                 );
     }
 }

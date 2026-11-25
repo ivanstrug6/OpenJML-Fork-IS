@@ -742,7 +742,6 @@ public class escstrings extends EscBase {
                     }
                 }
                 """
-                // EXPECTED-TBC: confirm line/column from the red run
                 ,"/tt/A.java:5: verify: The prover cannot establish an assertion (Assert) in method m",13
                 );
     }
@@ -760,8 +759,7 @@ public class escstrings extends EscBase {
                     }
                 }
                 """
-                // EXPECTED-TBC: confirm line/column from the red run
-                ,"/tt/A.java:5: verify: The prover cannot establish an assertion (ExceptionList) in method m",9
+                ,"/tt/A.java:5: verify: The prover cannot establish an assertion (ExceptionList) in method m",49
                 ,"/tt/A.java:3: verify: Associated declaration",9
                 );
     }
