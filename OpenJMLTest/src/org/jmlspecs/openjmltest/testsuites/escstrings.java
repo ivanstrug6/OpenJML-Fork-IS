@@ -664,4 +664,105 @@ public class escstrings extends EscBase {
                 ,"/tt/A.java:11: verify: The prover cannot establish an assertion (Assert) in method ctl_idx_wrongChar",13
                 );
     }
+
+    /** POSITIVE: int-to-String concatenation has no exceptional case (JLS 15.18.1). */
+    @Test
+    public void testIntConcatInNarrowedSignalsOnly() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ signals_only IllegalStateException;
+                    public static void m(int i) {
+                        throw new IllegalStateException("line " + i);
+                    }
+                }
+                """
+                );
+    }
+
+    /** POSITIVE: String.valueOf(int) returns normally. */
+    @Test
+    public void testValueOfIntInNarrowedSignalsOnly() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ signals_only IllegalStateException;
+                    public static void m(int i) {
+                        throw new IllegalStateException("line " + String.valueOf(i));
+                    }
+                }
+                """
+                );
+    }
+
+    /** POSITIVE: Integer.toString(int) returns normally. */
+    @Test
+    public void testIntegerToStringInNarrowedSignalsOnly() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ signals_only IllegalStateException;
+                    public static void m(int i) {
+                        throw new IllegalStateException("line " + Integer.toString(i));
+                    }
+                }
+                """
+                );
+    }
+
+    /** POSITIVE: the result of int concatenation is non-null. */
+    @Test
+    public void testIntConcatResultNonNull() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static void m(int i) {
+                        String s = "a" + i;
+                        //@ assert s != null;
+                    }
+                }
+                """
+                );
+    }
+
+    /** CONTROL: the int concatenation spec must not become a rubber stamp; assert false is refuted. */
+    @Test
+    public void testIntConcatAssertFalseControl() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    public static void m(int i) {
+                        String s = "a" + i;
+                        //@ assert false;
+                    }
+                }
+                """
+                // EXPECTED-TBC: confirm line/column from the red run
+                ,"/tt/A.java:5: verify: The prover cannot establish an assertion (Assert) in method m",13
+                );
+    }
+
+    /** CONTROL: long-to-String concatenation stays unspecified by design. */
+    @Test
+    public void testLongConcatStillUnspecifiedControl() {
+        addOptions("--no-smt-strings");
+        helpEsc("tt.A", """
+                package tt;
+                public class A {
+                    //@ signals_only IllegalStateException;
+                    public static void m(long l) {
+                        throw new IllegalStateException("line " + l);
+                    }
+                }
+                """
+                // EXPECTED-TBC: confirm line/column from the red run
+                ,"/tt/A.java:5: verify: The prover cannot establish an assertion (ExceptionList) in method m",9
+                ,"/tt/A.java:3: verify: Associated declaration",9
+                );
+    }
 }

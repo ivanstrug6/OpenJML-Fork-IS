@@ -1395,4 +1395,65 @@ public class escgeneric extends EscBase {
                 ,"$SPECS/java/lang/Object.jml:114: verify: Associated declaration",13
                 );
     }
+
+    /** List.size() is non-negative, so size() - 1 cannot underflow. */
+    @Test
+    public void testListSizeMinusOneNoUnderflow() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static int last(/*@ non_null */ java.util.List<String> xs) { return xs.size() - 1; }
+                }
+                """
+                );
+    }
+
+    /** A loop invariant bounded below by 0 holds on entry given size() >= 0. */
+    @Test
+    public void testListSizeLoopInvariantOnEntry() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static void m(/*@ non_null */ java.util.List<String> xs) {
+                    //@ loop_invariant 0 <= k && k <= xs.size();
+                    for (int k = 0; k < xs.size(); k++) {}
+                  }
+                }
+                """
+                );
+    }
+
+    /** Collection.size() is never negative. */
+    @Test
+    public void testCollectionSizeNonNegative() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static void m(/*@ non_null */ java.util.Collection<String> c) {
+                    //@ assert c.size() >= 0;
+                  }
+                }
+                """
+                );
+    }
+
+    /** CONTROL: size() > 0 is not provable and must still be reported. */
+    @Test
+    public void testListSizePositiveControl() {
+        helpEsc("tt.TestJava",
+                """
+                package tt;
+                public class TestJava {
+                  static void m(/*@ non_null */ java.util.List<String> xs) {
+                    //@ assert xs.size() > 0;
+                  }
+                }
+                """
+                // EXPECTED-TBC: confirm line/column from the red run
+                ,"/tt/TestJava.java:4: verify: The prover cannot establish an assertion (Assert) in method m",5
+                );
+    }
 }
